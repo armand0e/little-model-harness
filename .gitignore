@@ -1,0 +1,26 @@
+# build outputs
+dist/
+build/
+
+# build venvs
+.venv*/
+
+# python
+__pycache__/
+*.pyc
+
+# local user data (lives in the per-user appdata dir now; defensive ignores
+# in case an old version recreates them here)
+sessions/
+browser-profile/
+memory.md
+user_settings.json
+harness.toml
+
+# sample/scratch output — never publish the local workspace
+workspace/
+
+# stray art assets
+*.blend
+*.blend1
+*.glb

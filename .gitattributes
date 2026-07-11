@@ -1,0 +1,8 @@
+# shell scripts must stay LF or bash chokes on CRLF
+*.sh text eol=lf
+# keep the Inno script and PowerShell native
+*.iss text
+*.ps1 text
+*.ico binary
+*.icns binary
+*.png binary
