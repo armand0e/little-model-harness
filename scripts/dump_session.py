@@ -3,8 +3,13 @@ import json
 import sys
 from pathlib import Path
 
+
+def one(value, length):
+    return (value or "").replace("\n", " ")[:length]
+
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from harness.config import SESSIONS_DIR  # sessions live in the appdata dir
+from harness.config import SESSIONS_DIR  # noqa: E402 - path bootstrap above
 
 sid = sys.argv[1]
 start = int(sys.argv[2]) if len(sys.argv) > 2 else 0
@@ -16,7 +21,6 @@ for i, it in enumerate(d["display"]):
     if not (start <= i <= end):
         continue
     t = it.get("t")
-    one = lambda s, n: (s or "").replace("\n", " ")[:n]
     if t == "user":
         print(f"\n=== [{i}] USER: {one(it['text'], 300)}")
     elif t == "tool":

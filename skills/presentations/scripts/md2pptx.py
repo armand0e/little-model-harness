@@ -4,6 +4,7 @@ Usage: python md2pptx.py outline.md output.pptx
 """
 import re
 import sys
+from pathlib import Path
 
 from pptx import Presentation
 from pptx.dml.color import RGBColor
@@ -12,15 +13,17 @@ from pptx.util import Inches, Pt
 
 ACCENT = RGBColor(0x2F, 0x54, 0x96)
 DARK = RGBColor(0x33, 0x33, 0x33)
+XML_INVALID_RE = re.compile(r"[\x00-\x08\x0B\x0C\x0E-\x1F]")
 
 
 def clean(text):
     text = re.sub(r"\*\*(.+?)\*\*", r"\1", text)
-    return re.sub(r"\*(.+?)\*", r"\1", text).strip()
+    text = re.sub(r"\*(.+?)\*", r"\1", text).strip()
+    return XML_INVALID_RE.sub("", text)
 
 
 def parse(md_path):
-    lines = open(md_path, encoding="utf-8").read().splitlines()
+    lines = Path(md_path).read_text(encoding="utf-8").splitlines()
     deck = {"title": "", "subtitle": "", "slides": []}
     slide = None
     for line in lines:
@@ -40,7 +43,7 @@ def parse(md_path):
                 deck["subtitle"] = clean(stripped)
             continue
         if stripped.lower().startswith("notes:"):
-            slide["notes"].append(stripped[6:].strip())
+            slide["notes"].append(clean(stripped[6:].strip()))
             continue
         m = re.match(r"^(\s*)[-*]\s+(.*)$", line)
         if m:
@@ -114,8 +117,10 @@ def build(md_path, out_path):
         if sl["notes"]:
             s.notes_slide.notes_text_frame.text = " ".join(sl["notes"])
 
-    prs.save(out_path)
-    print(f"Saved {out_path} ({len(prs.slides.slides if hasattr(prs.slides, 'slides') else prs.slides._sldIdLst)} slides)")
+    output = Path(out_path)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    prs.save(output)
+    print(f"Saved {out_path} ({len(prs.slides)} slides)")
 
 
 if __name__ == "__main__":

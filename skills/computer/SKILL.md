@@ -4,25 +4,51 @@ description: Control the computer — open apps, manage windows, type, click, ta
 category: office
 hint: control apps, windows, keyboard, mouse, screenshots
 ---
-Control the desktop with the helper script via run. General form:
-`run("python \"{dir}\scripts\computer.py\" <command> [args]")`
+Use the first-class `computer` tool. Packaged builds attach a pinned native MCP
+backend for the running OS: Windows UI Automation, macOS Accessibility, or
+Linux AT-SPI. It returns semantic element IDs and updated screenshots, which is
+far more reliable than guessing coordinates.
 
-Commands:
-- `open <app or path>` — open an app, file, or URL (e.g. `open notepad`, `open https://site.com`, `open report.docx`)
-- `windows` — list open window titles
-- `focus "<partial title>"` — bring a window to the front
-- `type "<text>"` — type text into the focused window (use \n for Enter)
-- `press <keys>` — press a key combo, e.g. `press ctrl+s`, `press enter`, `press alt+f4`
-- `click <x> <y>` / `doubleclick <x> <y>` / `rightclick <x> <y>`
-- `scroll <amount>` — positive = up, negative = down
-- `screenshot [path]` — save a screenshot (default: workspace/screenshot.png) and report the screen size
-- `checkperms` — macOS only: report whether Accessibility/Screen Recording access is granted
-- `wait <seconds>` — pause (use after opening apps so they finish loading)
+Efficient workflow:
+1. Use `computer(action="open_app", app="...")` when the app is not running,
+   then `list_apps` to discover its exact runtime name if needed.
+2. `computer(action="get_state", app="...")` once before the first action.
+   Read the compact accessibility tree and inspect the attached screenshot.
+   After `open_app` or a successful state call, `app` may be omitted on later
+   actions because the harness remembers the active app.
+3. For named targets, call `computer(action="find", query="Gmail")`, or pass
+   `query` directly to `click`, `focus`, `set_value`, or `scroll`. This is safer
+   than scanning a long tree or guessing an ID from screenshot position.
+4. Prefer `set_value`, `click`, and `scroll` with the returned `element` ID.
+   Use `focus` on an editable control before `type_text` or keyboard shortcuts.
+   For browser navigation: focus the numeric address-bar element, set its value,
+   then press `Return` and verify the resulting title/page state.
+5. Action results contain updated state/screenshot evidence. Use it directly;
+   do not call `get_state` again unless the UI is ambiguous or changed outside
+   the tool.
+6. Use x/y coordinates only for canvas, games, or inaccessible custom widgets,
+   and only after inspecting a current screenshot.
+7. Element IDs are numeric. Never invent an `AX:` label or use visible text as
+   an element ID.
+
+Actions: `open_app`, `list_apps`, `get_state`, `find`, `focus`, `click`, `set_value`, `type_text`,
+`press_key`, `scroll`, `drag`, `secondary_action`. The non-list actions require
+`app`; semantic actions generally take `element`. `press_key` examples include
+`ctrl+s`, `Return`, `Tab`, and arrow keys.
 
 Rules:
-- You cannot see the screen. Prefer keyboard-driven flows (open, focus, type, press) over clicking at coordinates. Only click coordinates the user gave you.
-- ALWAYS `focus` a window before typing into it, and `wait 2` after `open`.
-- To save in most apps: `press ctrl+s`, then `wait 1`, then `type "filename\n"`.
-- macOS: `ctrl+`/`alt+` combos are auto-translated to `command`/`option`. The FIRST desktop-control action asks the user to grant permissions (Accessibility for typing/clicking, Screen Recording for screenshots, Automation for window listing) — if a command reports a missing permission, run `checkperms`, tell the user exactly what to enable in System Settings > Privacy & Security, and wait for them to confirm before retrying.
-- Prefer file tools and skill scripts over UI automation when both can do the job (e.g. create a .docx with the documents skill, THEN `open` it for the user).
-- Tell the user what you did to their screen.
+- Never claim an action worked without checking the returned state or image.
+- Prefer file tools and deterministic skill scripts when direct file editing is
+  possible; use desktop control for interactions that genuinely require an app.
+- macOS requires Accessibility and Screen Recording grants. Linux needs a
+  signed-in graphical session with AT-SPI/D-Bus. Windows needs the signed-in
+  interactive desktop session. Report permission/readiness errors exactly.
+- Tell the user what you changed on their screen.
+- If state capture fails twice, stop and report the first error. Never change
+  `OPEN_COMPUTER_USE_*` variables or replace computer control with shell GUI
+  automation; the harness owns backend configuration and retry limits.
+
+Legacy source fallback only: if the native backend is unavailable, the old
+helper remains at `python "{dir}\scripts\computer.py" <command> [args]` for
+basic open/focus/type/press/click/screenshot operations. It is not the preferred
+path because it has no semantic element tree and starts a process per action.

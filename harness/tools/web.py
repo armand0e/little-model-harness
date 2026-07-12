@@ -7,6 +7,8 @@ when a page yields no useful text (JS-heavy sites).
 from __future__ import annotations
 
 import re
+import ipaddress
+import socket
 import urllib.parse
 from html.parser import HTMLParser
 
@@ -17,6 +19,42 @@ UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) LittleModelHarnes
 _SKIP_TAGS = {"script", "style", "noscript", "svg", "head", "nav", "footer"}
 _BLOCK_TAGS = {"p", "div", "br", "li", "tr", "h1", "h2", "h3", "h4", "h5",
                "h6", "section", "article", "blockquote", "pre", "table"}
+MAX_REDIRECTS = 5
+
+
+def _validate_public_url(url: str) -> str:
+    """Reject credentials and local/private destinations in the web tool."""
+    parts = urllib.parse.urlsplit(url)
+    if parts.scheme not in {"http", "https"} or not parts.hostname:
+        raise ValueError("only http:// and https:// URLs are supported")
+    if parts.username is not None or parts.password is not None:
+        raise ValueError("URLs containing credentials are not allowed")
+    host = parts.hostname.rstrip(".").lower()
+    if host == "localhost" or host.endswith((".localhost", ".local")):
+        raise ValueError("local and private network URLs are not allowed")
+    try:
+        addresses = {info[4][0] for info in socket.getaddrinfo(
+            host, parts.port or (443 if parts.scheme == "https" else 80),
+            type=socket.SOCK_STREAM)}
+    except socket.gaierror as e:
+        raise ValueError(f"could not resolve host {host}: {e}") from e
+    if not addresses or any(not ipaddress.ip_address(addr).is_global
+                            for addr in addresses):
+        raise ValueError("local and private network URLs are not allowed")
+    return urllib.parse.urlunsplit(parts)
+
+
+def _get_with_safe_redirects(url: str, **kwargs) -> httpx.Response:
+    current = _validate_public_url(url)
+    for _ in range(MAX_REDIRECTS + 1):
+        response = httpx.get(current, follow_redirects=False, **kwargs)
+        if response.status_code not in {301, 302, 303, 307, 308}:
+            return response
+        location = response.headers.get("location")
+        if not location:
+            return response
+        current = _validate_public_url(urllib.parse.urljoin(current, location))
+    raise httpx.TooManyRedirects("too many redirects")
 
 
 class _TextExtractor(HTMLParser):
@@ -109,6 +147,11 @@ def _format_results(query: str, results: list[dict], via: str) -> str:
 def web_search(query: str) -> str:
     """Web search: stealth real-browser engines first (DDG->Bing->Brave),
     plain httpx DuckDuckGo as fallback."""
+    query = " ".join(query.split())
+    if not query:
+        return "Error: search query is empty."
+    if len(query) > 500:
+        return "Error: search query is too long (500 character limit)."
     from .. import browser
     if browser.available():
         try:
@@ -163,8 +206,17 @@ def _jina_reader(url: str) -> str | None:
 
 
 def fetch_url(url: str) -> str:
+    url = url.strip()
+    if not url:
+        return "Error: URL is empty."
+    if len(url) > 4096:
+        return "Error: URL is too long."
     if not re.match(r"^https?://", url):
         url = "https://" + url
+    try:
+        url = _validate_public_url(url)
+    except ValueError as e:
+        return f"Error fetching {url}: {e}. Use the run tool for an explicitly requested local URL."
     # real browser first: JS sites render, Reddit gets the rich .json path
     from .. import browser
     if browser.available():
@@ -177,12 +229,12 @@ def fetch_url(url: str) -> str:
         except Exception:
             pass  # fall through to the httpx path
     try:
-        r = httpx.get(url, follow_redirects=True, timeout=30.0, headers=UA)
+        r = _get_with_safe_redirects(url, timeout=30.0, headers=UA)
         r.raise_for_status()
     except httpx.HTTPError as e:
-        text = _jina_reader(url)
-        if text:
-            return text[:MAX_TEXT] + ("\n...[truncated]" if len(text) > MAX_TEXT else "")
+        fallback = _jina_reader(url)
+        if fallback:
+            return fallback[:MAX_TEXT] + ("\n...[truncated]" if len(fallback) > MAX_TEXT else "")
         return f"Error fetching {url}: {e}"
     ctype = r.headers.get("content-type", "")
     if "html" not in ctype and "text" not in ctype and "json" not in ctype:

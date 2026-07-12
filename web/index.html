@@ -55,6 +55,8 @@
     transition: background .15s;
   }
   .newchat:hover { background: var(--accent-hover); }
+  #historyscope { margin: 2px 18px 6px; color: var(--faint); font-size: 10.5px;
+    font-weight: 700; letter-spacing: .65px; text-transform: uppercase; }
   #search {
     margin: 0 12px 8px; padding: 7px 12px; border-radius: 8px;
     border: 1px solid var(--border); background: var(--bg); color: var(--text);
@@ -111,7 +113,7 @@
 
   /* ============ main ============ */
   #main { flex: 1 1 auto; display: flex; flex-direction: column;
-    min-width: 300px; position: relative; }
+    min-width: 300px; min-height: 0; position: relative; }
   #topbar {
     display: flex; align-items: center; gap: 10px; padding: 10px 18px;
     border-bottom: 1px solid var(--border-soft);
@@ -120,12 +122,27 @@
     padding: 6px 9px; border-radius: 8px; color: var(--muted); font-size: 15px;
   }
   #topbar .icon-btn:hover, .sb-head .icon-btn:hover { background: var(--border-soft); color: var(--text); }
+  body.booting #composer, body.booting #modetoggle, body.booting #newchat {
+    opacity: .55; pointer-events: none; }
   #chat-title { flex: 1; font-weight: 600; font-size: 14.5px; white-space: nowrap;
                 overflow: hidden; text-overflow: ellipsis; }
-  #modelbadge { font-size: 12px; color: var(--faint); border: 1px solid var(--border);
-                padding: 3px 10px; border-radius: 999px; }
+  #modelselect { max-width: 240px; font-size: 12px; color: var(--muted);
+    border: 1px solid var(--border); padding: 3px 26px 3px 10px;
+    border-radius: 999px; background: var(--panel); outline: none; }
+  #modelselect:focus { border-color: var(--accent); }
+  #modetoggle { display: inline-flex; align-items: center; gap: 2px;
+    padding: 3px; border: 1px solid var(--border); border-radius: 10px;
+    background: var(--panel); box-shadow: var(--shadow); }
+  #modetoggle .mode-label { padding: 0 6px; color: var(--faint);
+    font-size: 10px; font-weight: 700; letter-spacing: .45px;
+    text-transform: uppercase; }
+  #modetoggle button { min-width: 50px; padding: 5px 10px; border-radius: 7px;
+    color: var(--muted); font-size: 12px; font-weight: 600; }
+  #modetoggle button:hover { color: var(--text); background: var(--border-soft); }
+  #modetoggle button.active { color: #fff; background: var(--accent); }
 
-  #scroller { flex: 1; overflow-y: auto; overflow-x: hidden; scroll-behavior: smooth; }
+  #scroller { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden;
+    overscroll-behavior: contain; }
   #thread { max-width: 760px; margin: 0 auto; padding: 28px 24px 40px; min-width: 0; }
   .m-asst, .m-user > div, .md p, .md li { overflow-wrap: anywhere; }
 
@@ -151,12 +168,46 @@
     gap: 8px; margin: 22px 0 14px; }
   .m-user > div {
     background: var(--user-bg); padding: 11px 16px; border-radius: 16px 16px 4px 16px;
-    max-width: 82%; white-space: pre-wrap; overflow-wrap: break-word;
+    max-width: 82%; overflow-wrap: break-word;
   }
+  .user-text { white-space: pre-wrap; }
+  .user-attachments { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px; margin-top: 10px; min-width: min(440px, 65vw); }
+  .user-attachments:only-child { margin-top: 0; }
+  .attachment-image { display: block; width: 100%; max-height: 280px;
+    object-fit: cover; border-radius: 11px; background: var(--code-bg);
+    cursor: zoom-in; border: 1px solid var(--border); }
+  .attachment-media { width: 100%; max-height: 280px; border-radius: 11px;
+    background: #111; }
+  audio.attachment-media { height: 42px; background: transparent; }
+  .attachment-file { min-width: 0; display: flex; align-items: center; gap: 9px;
+    padding: 9px 11px; border-radius: 10px; border: 1px solid var(--border);
+    background: var(--panel); color: var(--text); text-align: left; }
+  .attachment-file:hover { border-color: var(--accent); }
+  .attachment-file .att-meta { min-width: 0; flex: 1; }
+  .attachment-file .att-name { display: block; white-space: nowrap; overflow: hidden;
+    text-overflow: ellipsis; font-size: 12.5px; font-weight: 600; }
+  .attachment-file .att-size { display: block; color: var(--faint); font-size: 11px; }
+  #attachpreview { position: fixed; inset: 0; z-index: 80; display: none;
+    align-items: center; justify-content: center; padding: 28px;
+    background: rgba(12, 11, 9, .86); }
+  #attachpreview.open { display: flex; }
+  #attachpreview img { max-width: min(1100px, 94vw); max-height: 88vh;
+    object-fit: contain; border-radius: 10px; box-shadow: 0 12px 50px #000; }
+  #attachpreview .preview-close { position: absolute; top: 16px; right: 18px;
+    width: 38px; height: 38px; border-radius: 50%; color: #fff;
+    background: rgba(0,0,0,.55); font-size: 22px; }
   .m-user .revert { opacity: 0; font-size: 12px; color: var(--faint);
     padding: 4px 8px; border-radius: 7px; transition: opacity .15s; flex-shrink: 0; }
   .m-user:hover .revert { opacity: 1; }
   .m-user .revert:hover { color: var(--err); background: var(--border-soft); }
+  .m-steer { display: flex; justify-content: flex-end; margin: 8px 0 12px; }
+  .m-steer > div { max-width: 82%; padding: 8px 12px; border-radius: 12px;
+    border: 1px solid var(--accent); background: var(--accent-soft);
+    white-space: pre-wrap; font-size: 13px; }
+  .m-steer .steer-label { display: inline-block; margin-right: 7px;
+    color: var(--accent); font-size: 10.5px; text-transform: uppercase;
+    letter-spacing: .45px; font-weight: 700; }
   .m-asst { margin: 8px 0 18px; overflow-wrap: break-word; }
   .m-asst .cursor { display: inline-block; width: 8px; height: 15px;
     background: var(--accent); border-radius: 2px; vertical-align: text-bottom;
@@ -229,6 +280,15 @@
   .toolcard pre { padding: 10px 14px; font: 12.5px/1.5 Consolas, monospace;
     white-space: pre-wrap; max-height: 280px; overflow-y: auto;
     border-top: 1px solid var(--border-soft); background: var(--code-bg); }
+  .visual-shots { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 8px; padding: 10px; border-top: 1px solid var(--border-soft); }
+  .visual-shot { position: relative; min-width: 0; border: 1px solid var(--border);
+    border-radius: 9px; overflow: hidden; background: var(--code-bg); cursor: zoom-in; }
+  .visual-shot img { width: 100%; height: 150px; display: block; object-fit: cover;
+    object-position: top; }
+  .visual-shot span { position: absolute; left: 6px; bottom: 6px; padding: 2px 7px;
+    border-radius: 999px; background: rgba(20,18,14,.72); color: #fff;
+    font-size: 10.5px; }
   .spin { width: 12px; height: 12px; border: 2px solid var(--border);
     border-top-color: var(--accent); border-radius: 50%;
     animation: rot .7s linear infinite; }
@@ -236,16 +296,22 @@
 
   .notice { text-align: center; font-size: 12px; color: var(--faint);
     font-style: italic; margin: 10px 0; }
+  .generation-activity { display: flex; align-items: center; gap: 8px;
+    width: fit-content; max-width: 100%; margin: 10px 0; padding: 6px 11px;
+    color: var(--muted); background: var(--panel); border: 1px dashed var(--border);
+    border-radius: 999px; font-size: 12px; font-style: italic; }
+  .generation-activity .pulse { width: 7px; height: 7px; flex-shrink: 0;
+    border-radius: 50%; background: var(--accent); animation: pulse 1.2s infinite; }
   .errline { color: var(--err); font-size: 13px; margin: 8px 0;
     padding: 9px 13px; border: 1px solid var(--err); border-radius: 10px;
     background: color-mix(in srgb, var(--err) 6%, transparent); }
 
   /* composer */
-  #composer-wrap { padding: 0 24px 18px; }
+  #composer-wrap { padding: 0 24px 18px; flex-shrink: 0; }
   #composer {
     max-width: 760px; margin: 0 auto; background: var(--raised);
     border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow);
-    padding: 10px 12px 8px; transition: border-color .15s;
+    padding: 10px 12px 8px; transition: border-color .15s; position: relative;
   }
   #composer:focus-within { border-color: var(--accent); }
   #input { width: 100%; border: none; outline: none; resize: none;
@@ -253,7 +319,7 @@
   #input::placeholder { color: var(--faint); }
   .comp-row { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
   .comp-hint { flex: 1; font-size: 11.5px; color: var(--faint); }
-  #wsbar { max-width: 760px; margin: 0 auto 7px; display: flex; }
+  #wsbar { max-width: 760px; margin: 0 auto 7px; display: flex; gap: 7px; }
   #wschip {
     display: inline-flex; align-items: center; gap: 6px; font-size: 12px;
     color: var(--muted); background: var(--panel); border: 1px solid var(--border);
@@ -263,6 +329,9 @@
   #wschip:hover { color: var(--accent); border-color: var(--accent); }
   #wschip .ws-caret { font-size: 9px; opacity: .7; }
   #wschip.busy { opacity: .55; pointer-events: none; }
+  body.chat-mode #wschip, body.chat-mode #attachbtn,
+  body.chat-mode #artbtn, body.chat-mode #filesbtn,
+  body.chat-mode #skillsbtn { display: none; }
   #attachbtn {
     width: 30px; height: 30px; border-radius: 9px; font-size: 17px;
     color: var(--muted); border: 1px solid var(--border);
@@ -282,6 +351,29 @@
   .chip .rm { cursor: pointer; font-size: 10px; opacity: .7; padding: 2px 4px; }
   .chip .rm:hover { opacity: 1; }
   .chip.uploading { opacity: .55; }
+  #followups { display: flex; flex-direction: column; gap: 6px; }
+  #followups:not(:empty) { padding: 0 0 8px; }
+  .followup { display: flex; align-items: center; gap: 8px; min-width: 0;
+    padding: 7px 9px; border-radius: 10px; background: var(--code-bg);
+    border: 1px solid var(--border); font-size: 12px; }
+  .followup .fq-text { flex: 1; min-width: 0; white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis; }
+  .followup .fq-state { color: var(--faint); white-space: nowrap; }
+  .followup button { color: var(--muted); padding: 2px 5px; border-radius: 5px;
+    font-size: 11.5px; white-space: nowrap; }
+  .followup button:hover { color: var(--accent); background: var(--border); }
+  #sendmode { display: none; height: 30px; padding: 0 9px; border-radius: 8px;
+    color: var(--muted); border: 1px solid var(--border); font-size: 11.5px; }
+  body.running #sendmode { display: block; }
+  #sendmenu { display: none; position: absolute; right: 10px; bottom: 49px;
+    width: 220px; z-index: 12; padding: 5px; border-radius: 11px;
+    background: var(--raised); border: 1px solid var(--border);
+    box-shadow: 0 8px 28px rgba(0,0,0,.18); }
+  #sendmenu.open { display: block; }
+  #sendmenu button { width: 100%; display: block; padding: 8px 10px;
+    border-radius: 8px; text-align: left; font-size: 12.5px; }
+  #sendmenu button:hover, #sendmenu button.active { background: var(--accent-soft); }
+  #sendmenu small { display: block; color: var(--faint); font-size: 10.5px; }
   #composer.dragover { border-color: var(--accent); background: var(--accent-soft); }
   #sendbtn, #stopbtn {
     width: 34px; height: 34px; border-radius: 10px; display: flex;
@@ -292,7 +384,6 @@
   #sendbtn:disabled { opacity: .35; cursor: default; }
   #stopbtn { display: none; }
   body.running #stopbtn { display: flex; }
-  body.running #sendbtn { display: none; }
 
   /* ============ right drawer ============ */
   #drawer {
@@ -326,6 +417,7 @@
   .tree-dir[open] > summary .tw { transform: rotate(270deg); }
   /* icon sizing inside compact controls */
   .convo .acts svg { width: 12px; height: 12px; }
+  .jobstate { font-size: 10.5px; color: var(--accent); white-space: nowrap; }
   .m-acts svg { width: 12px; height: 12px; }
   .f-dl svg { width: 13px; height: 13px; }
   .m-user .revert svg { width: 13px; height: 13px; }
@@ -369,9 +461,12 @@
     display: none; align-items: center; justify-content: center; z-index: 50; }
   #overlay.open { display: flex; }
   #modal { background: var(--panel); border: 1px solid var(--border);
-    border-radius: 16px; width: 420px; max-width: 92vw; padding: 22px;
+    border-radius: 16px; width: 540px; max-width: 92vw; padding: 22px;
     box-shadow: 0 12px 40px rgba(0,0,0,.25); }
-  #modal h3 { font-family: Georgia, serif; margin-bottom: 16px; }
+  #modal h3 { position: sticky; top: -22px; z-index: 2;
+    font-family: Georgia, serif; margin: -22px -22px 16px;
+    padding: 20px 22px 12px; background: var(--panel);
+    border-bottom: 1px solid var(--border-soft); }
   .set-row { margin-bottom: 16px; }
   .set-row label { display: flex; justify-content: space-between; font-size: 13px;
     color: var(--muted); margin-bottom: 6px; }
@@ -380,15 +475,62 @@
     border: 1px solid var(--border); background: var(--bg); color: var(--text);
     font: 13px Consolas, monospace; outline: none; }
   .set-text:focus { border-color: var(--accent); }
+  textarea.set-text { resize: vertical; min-height: 100px; line-height: 1.45; }
   .set-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
   #modal { max-height: 88vh; overflow-y: auto; }
   .set-info { font-size: 12.5px; color: var(--muted); line-height: 1.7;
     background: var(--code-bg); border-radius: 10px; padding: 10px 14px;
     word-break: break-all; }
-  .modal-acts { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+  .set-status { display: none; align-items: flex-start; gap: 8px;
+    margin-top: 10px; padding: 9px 12px; border-radius: 9px;
+    font-size: 12.5px; line-height: 1.45; word-break: break-word; }
+  .set-status.show { display: flex; }
+  .set-status.pending, .set-status.dirty { color: var(--muted);
+    background: var(--accent-soft); }
+  .set-status.ok { color: var(--ok);
+    background: color-mix(in srgb, var(--ok) 10%, transparent); }
+  .set-status.error { color: var(--err);
+    background: color-mix(in srgb, var(--err) 9%, transparent); }
+  .save-spinner { width: 12px; height: 12px; margin-top: 2px; flex: 0 0 auto;
+    border: 2px solid currentColor; border-right-color: transparent;
+    border-radius: 50%; animation: settings-spin .7s linear infinite; }
+  @keyframes settings-spin { to { transform: rotate(360deg); } }
+  #modal > .modal-acts { position: sticky; bottom: -22px; z-index: 2;
+    display: flex; justify-content: flex-end; gap: 8px;
+    margin: 18px -22px -22px; padding: 12px 22px 20px;
+    background: var(--panel); border-top: 1px solid var(--border-soft); }
   .modal-acts button { padding: 8px 16px; border-radius: 9px; font-size: 13.5px; }
   .btn-primary { background: var(--accent); color: #fff; }
   .btn-ghost { border: 1px solid var(--border); color: var(--muted); }
+  .modal-acts button:disabled { opacity: .48; cursor: default; }
+
+  /* ============ app-native dialogs (never use browser alert/confirm/prompt) ============ */
+  #appdialogoverlay { position: fixed; inset: 0; z-index: 90; display: none;
+    align-items: center; justify-content: center; padding: 20px;
+    background: rgba(20,18,14,.55); backdrop-filter: blur(2px); }
+  #appdialogoverlay.open { display: flex; }
+  #appdialog { width: min(430px, 94vw); max-height: min(620px, 88vh);
+    overflow-y: auto; padding: 22px; border: 1px solid var(--border);
+    border-radius: 16px; background: var(--panel);
+    box-shadow: 0 18px 60px rgba(0,0,0,.3); }
+  #appdialog h3 { margin: 0 0 9px; font: 600 19px/1.25 Georgia, serif; }
+  #appdialogmessage { color: var(--muted); font-size: 13.5px; line-height: 1.55;
+    white-space: pre-wrap; overflow-wrap: anywhere; }
+  #appdialogfield { display: none; margin-top: 16px; }
+  #appdialogfield.show { display: block; }
+  #appdialogfield label { display: block; margin-bottom: 6px; color: var(--muted);
+    font-size: 12px; }
+  #appdialoginput { width: 100%; padding: 9px 11px; border-radius: 9px;
+    border: 1px solid var(--border); background: var(--bg); color: var(--text);
+    font: 13px Consolas, monospace; outline: none; }
+  #appdialoginput:focus { border-color: var(--accent); }
+  .appdialog-acts { display: flex; justify-content: flex-end; gap: 8px;
+    margin-top: 20px; }
+  .appdialog-acts button { padding: 8px 16px; border-radius: 9px;
+    font-size: 13.5px; }
+  #appdialogconfirm { background: var(--accent); color: #fff; }
+  #appdialogconfirm.danger { background: var(--err); }
+  #appdialogcancel { border: 1px solid var(--border); color: var(--muted); }
 
   /* ============ artifacts ============ */
   #artdivider { width: 6px; cursor: col-resize; background: transparent;
@@ -456,6 +598,7 @@
       margin-left: 0 !important; transform: translateX(-105%);
       box-shadow: 6px 0 24px rgba(0, 0, 0, .35);
     }
+    body.sb-hidden #sidebar { box-shadow: none; }
     body:not(.sb-hidden) #sidebar { transform: none; }
     body:not(.sb-hidden) #sbback { display: block; }
     #artpanel {
@@ -472,24 +615,33 @@
     #thread { padding: 18px 12px 30px; }
     #composer-wrap { padding: 0 10px 12px; }
     #topbar { padding: 8px 10px; gap: 6px; }
+    #modetoggle .mode-label { display: none; }
+    #modetoggle button { min-width: 44px; padding-inline: 7px; }
     #welcome { padding-top: 5vh; }
     #welcome h2 { font-size: 24px; }
     .m-user > div { max-width: 92%; }
+    .user-attachments { grid-template-columns: 1fr; min-width: min(300px, 72vw); }
     .m-user .revert { opacity: .6; }         /* no hover on touch */
     .m-acts { opacity: .7; }
     #wsbar { margin-bottom: 5px; }
     #scrolldown { bottom: 116px; }
   }
+  @media (max-width: 600px) {
+    #chat-title, #exportbtn, #skillsbtn { display: none !important; }
+    #modelselect { width: 100px; max-width: 100px; }
+    #topbar { gap: 4px; }
+  }
 </style>
 </head>
-<body>
+<body class="booting">
 
 <nav id="sidebar">
   <div class="sb-head">
     <div class="logo"><em><svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M12 2l7 10-7 10-7-10z"/></svg></em> Little Harness</div>
     <button class="icon-btn" id="collapse" title="Hide sidebar"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg></button>
   </div>
-  <button class="newchat" id="newchat"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> New chat</button>
+  <button class="newchat" id="newchat" disabled><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> <span id="newchatlabel">New code task</span></button>
+  <div id="historyscope">Code history</div>
   <input id="search" placeholder="Search chats…">
   <div id="convos"></div>
   <div class="sb-foot">
@@ -507,7 +659,12 @@
   <div id="topbar">
     <button class="icon-btn" id="expand" title="Show sidebar"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 12h18M3 6h18M3 18h18"/></svg></button>
     <div id="chat-title">New chat</div>
-    <span id="modelbadge">…</span>
+    <div id="modetoggle" role="group" aria-label="Conversation mode">
+      <span class="mode-label">Mode</span>
+      <button type="button" data-mode="chat" aria-pressed="false">Chat</button>
+      <button type="button" data-mode="agent" class="active" aria-pressed="true">Code</button>
+    </div>
+    <select id="modelselect" title="Active model"><option>…</option></select>
     <button class="icon-btn" id="exportbtn" title="Export chat as Markdown"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg></button>
     <button class="icon-btn" id="artbtn" title="Artifacts"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 3v18"/></svg></button>
     <button class="icon-btn" id="filesbtn" title="Workspace files"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></button>
@@ -525,13 +682,19 @@
       </button>
     </div>
     <div id="composer">
+      <div id="followups"></div>
       <div id="chips"></div>
-      <textarea id="input" rows="1" placeholder="Message Little Harness…  (paste or drop files here)"></textarea>
+      <textarea id="input" rows="1" disabled placeholder="Starting Little Harness…"></textarea>
       <div class="comp-row">
         <button id="attachbtn" class="attach" title="Attach files"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
         <div class="comp-hint">Enter to send · Shift+Enter for a new line · Esc to stop</div>
+        <button id="sendmode" title="Choose how this message is sent">Queue ▾</button>
         <button id="stopbtn" title="Stop"><svg viewBox="0 0 24 24" width="14" height="14"><rect x="6" y="6" width="12" height="12" rx="1.5" fill="currentColor"/></svg></button>
-        <button id="sendbtn" title="Send"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+        <button id="sendbtn" title="Send" disabled><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+      </div>
+      <div id="sendmenu">
+        <button data-send-action="queue" class="active">Queue after current<small>Run as the next user turn</small></button>
+        <button data-send-action="steer">Steer current turn<small>Apply at the next safe model boundary</small></button>
       </div>
       <input type="file" id="fileinput" multiple hidden>
     </div>
@@ -563,6 +726,10 @@
 
 <div id="sbback"></div>
 <button id="quotechip">❝ quote in reply</button>
+<div id="attachpreview" role="dialog" aria-modal="true" aria-label="Attachment preview">
+  <button class="preview-close" title="Close preview">×</button>
+  <img alt="Attachment preview">
+</div>
 
 <div id="helpoverlay" style="position:fixed;inset:0;background:rgba(20,18,14,.45);display:none;align-items:center;justify-content:center;z-index:50">
   <div style="background:var(--panel);border:1px solid var(--border);border-radius:16px;width:400px;max-width:92vw;padding:22px">
@@ -580,8 +747,9 @@
 </div>
 
 <div id="overlay">
-  <div id="modal">
-    <h3>Settings</h3>
+  <div id="modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+    <h3 id="settings-title">Settings</h3>
+    <div class="set-status" id="setstatus" role="status" aria-live="polite"></div>
     <div class="set-row">
       <label>Temperature <span id="tval"></span></label>
       <input type="range" id="tslider" min="0" max="1.5" step="0.05">
@@ -593,23 +761,55 @@
       </div>
       <div class="set-row">
         <label>Model ID</label>
-        <input type="text" id="modelinput" class="set-text" placeholder="llm" spellcheck="false">
+        <input type="text" id="modelinput" class="set-text" placeholder="llm"
+          list="modellist" spellcheck="false"><datalist id="modellist"></datalist>
       </div>
       <div class="set-row">
         <label>API key <span style="font-size:11px">optional</span></label>
         <input type="password" id="keyinput" class="set-text" placeholder="not needed for local">
+        <label id="clearkeylabel" style="font-size:11px; margin-top:5px">
+          <input type="checkbox" id="clearkey"> Clear saved key
+        </label>
       </div>
       <div class="set-row">
         <label>Context window <span style="font-size:11px">tokens</span></label>
         <input type="number" id="ctxinput" class="set-text" min="4096" step="1024" placeholder="32768">
       </div>
+      <div class="set-row">
+        <label>Max output <span style="font-size:11px">tokens per model call</span></label>
+        <input type="number" id="maxoutinput" class="set-text" min="256" step="256" placeholder="4096">
+      </div>
+    </div>
+    <div class="set-row">
+      <label>Additional MCP servers <span style="font-size:11px">local stdio JSON</span></label>
+      <textarea id="mcpinput" class="set-text" spellcheck="false"
+        placeholder='{"filesystem":{"command":"npx","args":["-y","@modelcontextprotocol/server-filesystem","C:\\path"]}}'></textarea>
+      <div style="font-size:11px;color:var(--faint);margin-top:5px">
+        Commands run locally and their tools are available in Code mode. Disabled servers may use {"enabled":false}.
+      </div>
     </div>
     <div class="set-info" id="setinfo"></div>
     <div class="modal-acts">
-      <button class="btn-ghost" id="closemodal">Close</button>
-      <button class="btn-primary" id="savemodal">Save</button>
+      <button class="btn-ghost" id="closemodal" type="button">Close</button>
+      <button class="btn-primary" id="savemodal" type="button">Save changes</button>
     </div>
   </div>
+</div>
+
+<div id="appdialogoverlay">
+  <form id="appdialog" role="dialog" aria-modal="true"
+    aria-labelledby="appdialogtitle" aria-describedby="appdialogmessage">
+    <h3 id="appdialogtitle"></h3>
+    <div id="appdialogmessage"></div>
+    <div id="appdialogfield">
+      <label for="appdialoginput" id="appdialoglabel"></label>
+      <input id="appdialoginput" autocomplete="off" spellcheck="false">
+    </div>
+    <div class="appdialog-acts">
+      <button type="button" id="appdialogcancel">Cancel</button>
+      <button type="submit" id="appdialogconfirm">OK</button>
+    </div>
+  </form>
 </div>
 
 <script>
@@ -619,12 +819,59 @@ const scroller = $("scroller"), thread = $("thread"), input = $("input");
 
 /* ---------------- state ---------------- */
 let sessions = [], currentId = null, running = false, drawerTab = "files";
+let openSessionSequence = 0;
+let refreshSessionsSequence = 0;
 let status = { skills: [], window: 32768, model: "…" };   // status.workspace = default for new chats
 let sessionWs = null;                                     // active chat's own workspace
 let artifacts = [], activeArt = -1, filesSnapshot = new Map();
+const activeTurns = new Map();                            // sid -> live/queued stream state
+const pendingSends = new Set();
+let pendingFollowups = [];
+let sendAction = localStorage.lmhSendAction === "steer" ? "steer" : "queue";
+let draftMode = localStorage.lmhMode === "chat" ? "chat" : "agent";
+let settingsSaving = false, settingsDirty = false, settingsPollTimer = 0;
+let dialogResolve = null, dialogLastFocus = null;
+const modeAttachments = { agent: [], chat: [] };
 // every file/tree/upload/preview call is scoped to the active chat
 const wsq = (pfx = "?") => currentId ? pfx + "sid=" + currentId : "";
 const activeWs = () => sessionWs || status.workspace || "";
+const sessionQuery = (sid, pfx = "?") => sid ? pfx + "sid=" + sid : "";
+
+function currentMode() {
+  return draftMode;
+}
+function syncActiveUI() {
+  const state = currentId ? activeTurns.get(currentId) : null;
+  const session = sessions.find(s => s.id === currentId);
+  running = !!state || !!(session && (session.running || session.queued));
+  document.body.classList.toggle("running", running);
+  $("wschip").classList.toggle("busy", running);
+  const mode = currentMode();
+  document.body.classList.toggle("chat-mode", mode === "chat");
+  if (mode === "chat") {
+    $("drawer").classList.remove("open");
+    document.body.classList.remove("art-open");
+  }
+  document.querySelectorAll("#modetoggle [data-mode]").forEach(button => {
+    const active = button.dataset.mode === mode;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+  $("modetoggle").title = mode === "agent"
+    ? "Code mode can use skills, tools, files, and MCP" : "Chat mode has no tools";
+  $("historyscope").textContent = mode === "chat" ? "Chat history" : "Code history";
+  $("newchatlabel").textContent = mode === "chat" ? "New chat" : "New code task";
+  $("search").placeholder = mode === "chat" ? "Search chat history…" : "Search code history…";
+  $("attachbtn").disabled = mode === "chat" || running;
+  $("attachbtn").title = running ? "Attachments cannot be added to a follow-up yet"
+    : mode === "chat" ? "Switch to Code mode to attach files" : "Attach files";
+  document.querySelector(".comp-hint").textContent = running
+    ? (sendAction === "steer" ? "Steer the current turn at its next safe boundary"
+                              : "Queue a message to run after the current turn")
+    : mode === "chat" ? "Chat mode · no tools · Enter to send"
+    : "Enter to send · Shift+Enter for a new line · Esc to stop";
+  $("sendmode").textContent = (sendAction === "steer" ? "Steer" : "Queue") + " ▾";
+}
 
 /* ---------------- utils ---------------- */
 function el(tag, cls, text) {
@@ -633,7 +880,8 @@ function el(tag, cls, text) {
   if (text !== undefined) e.textContent = text;
   return e;
 }
-const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;")
+  .replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 
 /* ---------------- svg icons (no emojis) ---------------- */
 const ICONS = {
@@ -690,8 +938,76 @@ function fmtSize(n) {
   return n > 1048576 ? (n / 1048576).toFixed(1) + " MB"
        : n > 1024 ? Math.round(n / 1024) + " KB" : n + " B";
 }
-function nearBottom() { return scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 140; }
-function scrollDown(force) { if (force || nearBottom()) scroller.scrollTop = scroller.scrollHeight; }
+function closeAppDialog(confirmed) {
+  if (!dialogResolve) return;
+  const resolve = dialogResolve;
+  const value = $("appdialoginput").value;
+  dialogResolve = null;
+  $("appdialogoverlay").classList.remove("open");
+  document.body.classList.remove("dialog-open");
+  resolve({ confirmed, value });
+  if (dialogLastFocus?.isConnected) dialogLastFocus.focus();
+  dialogLastFocus = null;
+}
+function appDialog({ title, message, confirmLabel = "OK", cancelLabel = null,
+                     inputValue = null, inputLabel = "", danger = false }) {
+  // Resolve an older dialog defensively instead of leaving its caller hung.
+  if (dialogResolve) closeAppDialog(false);
+  dialogLastFocus = document.activeElement;
+  $("appdialogtitle").textContent = title;
+  $("appdialogmessage").textContent = message || "";
+  $("appdialogconfirm").textContent = confirmLabel;
+  $("appdialogconfirm").classList.toggle("danger", danger);
+  $("appdialogcancel").textContent = cancelLabel || "Cancel";
+  $("appdialogcancel").style.display = cancelLabel ? "inline-block" : "none";
+  const hasInput = inputValue !== null;
+  $("appdialogfield").classList.toggle("show", hasInput);
+  $("appdialoglabel").textContent = inputLabel;
+  $("appdialoginput").value = hasInput ? inputValue : "";
+  $("appdialogoverlay").classList.add("open");
+  document.body.classList.add("dialog-open");
+  requestAnimationFrame(() => (hasInput ? $("appdialoginput")
+    : $("appdialogconfirm")).focus());
+  return new Promise(resolve => { dialogResolve = resolve; });
+}
+async function appAlert(title, message) {
+  await appDialog({ title, message, confirmLabel: "OK" });
+}
+async function appConfirm(title, message, confirmLabel = "Continue", danger = false) {
+  return (await appDialog({ title, message, confirmLabel, cancelLabel: "Cancel",
+                            danger })).confirmed;
+}
+async function appPrompt(title, message, value = "", label = "Name") {
+  const result = await appDialog({ title, message, confirmLabel: "Save",
+    cancelLabel: "Cancel", inputValue: value, inputLabel: label });
+  return result.confirmed ? result.value.trim() : null;
+}
+$("appdialog").onsubmit = e => { e.preventDefault(); closeAppDialog(true); };
+$("appdialogcancel").onclick = () => closeAppDialog(false);
+$("appdialogoverlay").onclick = e => {
+  if (e.target === $("appdialogoverlay")) closeAppDialog(false);
+};
+function endpointIsLocal(url) {
+  try { return ["localhost", "127.0.0.1", "::1"].includes(new URL(url).hostname); }
+  catch { return false; }
+}
+let followTail = true, tailScrollFrame = 0, settingTailScroll = false;
+function nearBottom() {
+  return scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 140;
+}
+function scrollDown(force = false) {
+  if (force) followTail = true;
+  if (!followTail) return;
+  settingTailScroll = true;
+  scroller.scrollTop = scroller.scrollHeight;
+  cancelAnimationFrame(tailScrollFrame);
+  // A second layout pass catches images, expanded tools, and markdown whose
+  // dimensions settle after the event that appended them.
+  tailScrollFrame = requestAnimationFrame(() => {
+    if (followTail) scroller.scrollTop = scroller.scrollHeight;
+    requestAnimationFrame(() => { settingTailScroll = false; });
+  });
+}
 
 /* ---------------- markdown ---------------- */
 function inline(s) {
@@ -840,6 +1156,8 @@ const CONSOLE_BRIDGE = '<script>(function(){var E=[];var t=null;'
 
 window.addEventListener("message", e => {
   if (e.data?.type !== "lmh-console") return;
+  if (![...$("artview").querySelectorAll("iframe")]
+      .some(frame => frame.contentWindow === e.source)) return;
   const strip = $("artconsole");
   strip.textContent = e.data.entries.map(x => "! " + x).join("\n");
   strip.classList.add("show");
@@ -889,8 +1207,7 @@ function updateArtPreview() {
   const iframe = document.createElement("iframe");
   iframe.setAttribute("sandbox", "allow-scripts allow-modals");
   if (a.kind === "inline") iframe.srcdoc = CONSOLE_BRIDGE + a.html;
-  else { iframe.removeAttribute("sandbox");        // same-origin server preview
-         iframe.src = `/api/preview/${encPath(a.name)}?v=${a.rev || 0}${wsq("&")}`; }
+  else iframe.src = `/api/preview/${encPath(a.name)}?v=${a.rev || 0}${wsq("&")}`;
   const old = view.querySelectorAll("iframe");
   if (old.length) {                                // double-buffer swap
     iframe.style.opacity = "0";
@@ -908,9 +1225,13 @@ function openFileArtifact(name, mtime, select, open = true) {
   upsertArtifact({ key: "file:" + name, label: name, kind: "file",
                    name, rev: mtime || Date.now() }, select, open);
 }
-async function snapshotFiles() {
-  filesSnapshot = new Map();
-  try { for (const f of await api("/files" + wsq())) filesSnapshot.set(f.name, f.mtime); } catch {}
+async function snapshotFiles(sid = currentId) {
+  const snapshot = new Map();
+  try {
+    for (const f of await api("/files" + sessionQuery(sid)))
+      snapshot.set(f.name, f.mtime);
+  } catch {}
+  return snapshot;
 }
 // workspace-relative path (handles windows slashes/case), or null if outside
 function workspaceRel(p) {
@@ -918,36 +1239,44 @@ function workspaceRel(p) {
   const norm = s => s.replace(/\\/g, "/").replace(/\/+$/, "");
   const ws = norm(activeWs()).toLowerCase();
   const fp = norm(p);
+  // Tool calls normally use workspace-relative paths. The old implementation
+  // accepted only absolute paths, so newly written artifacts appeared late
+  // (or not until the whole turn finished).
+  if (!/^(?:[a-zA-Z]:\/|\/)/.test(fp)) {
+    const rel = fp.replace(/^\.\//, "");
+    if (!rel || rel === ".." || rel.startsWith("../")) return null;
+    return rel;
+  }
   if (!fp.toLowerCase().startsWith(ws + "/")) return null;
   return fp.slice(ws.length + 1);
 }
 // open the artifact the moment the model writes a compatible file, mid-turn
-let _runScanTimer = null;
-function onToolFinished(name, args, result) {
+function onToolFinished(name, args, result, state) {
   if ((result || "").trimStart().startsWith("Error")) return;
   if (name === "write_file" || name === "edit_file") {
     try {
       const rel = workspaceRel(JSON.parse(args).path);
       const ext = (rel || "").split(".").pop().toLowerCase();
-      if (rel && OFFICE_EXT.includes(ext))
+      if (currentId === state?.sid && rel && OFFICE_EXT.includes(ext))
         openFileArtifact(rel, Date.now() / 1000, wideView(), wideView());
     } catch {}
   } else if (name === "run") {
     // scripts create docx/xlsx/pptx/renders — diff the workspace, debounced
-    clearTimeout(_runScanTimer);
-    _runScanTimer = setTimeout(autoOpenNewFiles, 1200);
+    clearTimeout(state?.runScanTimer);
+    if (state) state.runScanTimer = setTimeout(() => autoOpenNewFiles(state), 1200);
   }
 }
-async function autoOpenNewFiles() {
+async function autoOpenNewFiles(state) {
+  if (!state || currentId !== state.sid) return;
   let files = [];
-  try { files = await api("/files" + wsq()); } catch { return; }
+  try { files = await api("/files" + sessionQuery(state.sid)); } catch { return; }
   let newest = null;
   for (const f of files) {
     const ext = (f.name.split(".").pop() || "").toLowerCase();
     if (!OFFICE_EXT.includes(ext)) continue;
-    const prev = filesSnapshot.get(f.name);
+    const prev = state.filesSnapshot.get(f.name);
     if (prev === undefined || f.mtime > prev) {
-      filesSnapshot.set(f.name, f.mtime);   // don't re-trigger on next scan
+      state.filesSnapshot.set(f.name, f.mtime); // don't re-trigger on next scan
       openFileArtifact(f.name, f.mtime, false, wideView());
       if (!newest || f.mtime > newest.mtime) newest = f;
     }
@@ -960,39 +1289,131 @@ async function autoOpenNewFiles() {
 const TOOL_ICONS = { read_file: "file", write_file: "filePlus", edit_file: "pencil",
   list_dir: "folder", search: "search", run: "terminal", fetch: "globe",
   web_search: "search", skill: "spark", save_skill: "book", remember: "pin",
-  history_search: "clock", subtask: "branch" };
+  history_search: "clock", subtask: "branch", visual_check: "columns",
+  mcp: "globe" };
 function shortArgs(argstr) {
   try {
     const a = JSON.parse(argstr);
     return Object.entries(a).map(([k, v]) => `${k}: ${String(v).slice(0, 70)}`).join("  ·  ");
   } catch { return (argstr || "").slice(0, 90); }
 }
-function addUser(text, displayIndex) {
+function attachmentKind(name) {
+  const ext = (name.split(".").pop() || "").toLowerCase();
+  if (["png", "jpg", "jpeg", "gif", "webp"].includes(ext)) return "image";
+  if (["mp4", "webm", "mov"].includes(ext)) return "video";
+  if (["mp3", "wav", "ogg"].includes(ext)) return "audio";
+  return "file";
+}
+function normalizeUserAttachments(text, items) {
+  let cleanText = text || "", attachments = Array.isArray(items) ? items : [];
+  // Sessions created by older versions embedded filenames in prose. Upgrade
+  // them at render time so existing chats immediately gain attachment cards.
+  if (!attachments.length) {
+    const legacy = cleanText.match(/(?:\n\s*)?\[Attached files, saved in the workspace:\s*([^\]]+)\]\s*$/);
+    if (legacy) {
+      attachments = legacy[1].split(",").map(name => name.trim()).filter(Boolean)
+        .map(name => ({ name, kind: attachmentKind(name), size: null,
+                        previewable: OFFICE_EXT.includes((name.split(".").pop() || "").toLowerCase()) }));
+      cleanText = cleanText.slice(0, legacy.index).trimEnd();
+    }
+  }
+  return { text: cleanText, attachments };
+}
+function attachmentUrl(name, preview = true) {
+  return `${preview ? "/api/preview/" : "/api/files/"}${encPath(name)}${wsq()}`;
+}
+function openAttachment(item) {
+  if (item.kind === "image") {
+    const overlay = $("attachpreview");
+    overlay.querySelector("img").src = attachmentUrl(item.name);
+    overlay.querySelector("img").alt = item.name;
+    overlay.classList.add("open");
+  } else if (item.previewable) {
+    openFileArtifact(item.name, Date.now() / 1000, true, true);
+  } else {
+    window.open(attachmentUrl(item.name, false));
+  }
+}
+function addAttachmentGallery(bubble, items) {
+  if (!items.length) return;
+  const gallery = el("div", "user-attachments");
+  for (const raw of items) {
+    const item = { kind: attachmentKind(raw.name || ""), ...raw };
+    if (item.kind === "image") {
+      const img = document.createElement("img");
+      img.className = "attachment-image"; img.loading = "lazy";
+      img.src = attachmentUrl(item.name); img.alt = item.name;
+      img.title = `Preview ${item.name}`; img.onclick = () => openAttachment(item);
+      gallery.append(img);
+    } else if (item.kind === "video") {
+      const video = document.createElement("video");
+      video.className = "attachment-media"; video.controls = true;
+      video.preload = "metadata"; video.src = attachmentUrl(item.name);
+      gallery.append(video);
+    } else if (item.kind === "audio") {
+      const audio = document.createElement("audio");
+      audio.className = "attachment-media"; audio.controls = true;
+      audio.preload = "metadata"; audio.src = attachmentUrl(item.name);
+      gallery.append(audio);
+    } else {
+      const card = el("button", "attachment-file");
+      const ico = el("span", "t-ico"); ico.innerHTML = svgIcon("file", 14);
+      const meta = el("span", "att-meta");
+      meta.append(el("span", "att-name", item.name),
+        el("span", "att-size", item.size == null ? "attachment" : fmtSize(item.size)));
+      card.append(ico, meta);
+      card.title = item.previewable ? `Preview ${item.name}` : `Download ${item.name}`;
+      card.onclick = () => openAttachment(item);
+      gallery.append(card);
+    }
+  }
+  bubble.append(gallery);
+}
+function addUser(text, displayIndex, attachmentItems) {
+  const normalized = normalizeUserAttachments(text, attachmentItems);
   const w = el("div", "m-user");
   if (displayIndex !== undefined) {
     const rv = iconBtn("revert", "undo", "",
-      "Revert to here — rewinds the chat AND restores files the assistant "
-      + "changed after this point");
-    rv.onclick = () => revertTo(displayIndex, text);
+      "Revert to here — rewinds chat and restores checkpointed file-tool changes");
+    rv.onclick = () => revertTo(displayIndex, normalized.text);
     w.append(rv);
   }
-  w.append(el("div", "", text));
+  const bubble = el("div", "user-bubble");
+  if (normalized.text) bubble.append(el("div", "user-text", normalized.text));
+  addAttachmentGallery(bubble, normalized.attachments);
+  w.append(bubble);
   thread.append(w); return w;
+}
+function addSteer(text) {
+  const w = el("div", "m-steer");
+  const bubble = el("div");
+  bubble.append(el("span", "steer-label", "Steer"),
+                document.createTextNode(text));
+  w.append(bubble); thread.append(w); return w;
+}
+function restoreAttachmentChips(items) {
+  attachments = (items || []).map(item => ({ ...item, saved: true }));
+  renderChips();
 }
 async function revertTo(displayIndex, text) {
   if (running || !currentId) return;
-  if (!confirm("Revert to this point? Chat after it is removed and files the "
-               + "assistant changed will be restored.")) return;
+  if (!await appConfirm("Revert conversation?",
+      "Later messages will be removed and checkpointed file-tool changes will be restored.",
+      "Revert", true)) return;
   let r;
   try {
     r = await post(`/sessions/${currentId}/revert`, { display_index: displayIndex });
-  } catch { return; }
+  } catch (error) {
+    await appAlert("Could not revert", error.message || String(error)); return;
+  }
   const s = await api(`/sessions/${currentId}`);
   renderDisplay(s.display);
   if (r.restored_files?.length)
     thread.append(el("div", "notice",
       `restored ${r.restored_files.length} file(s)`));
-  input.value = r.text; autogrow(); input.focus();
+  const restored = normalizeUserAttachments(r.text, r.attachments);
+  restoreAttachmentChips(restored.attachments);
+  input.value = restored.text; autogrow(); input.focus();
   refreshDrawer();
 }
 function addAssistant() {
@@ -1041,6 +1462,31 @@ function finishTool(card, result) {
   state.className = "t-state " + (isErr ? "err" : "ok");
   const pre = el("pre", "", result || "(no output)");
   card.append(pre);
+  card.open = isErr;
+  const matches = [...(result || "").matchAll(
+    /^Visual screenshot \[([^\]]+)\]:\s*(.+\.png)\s*$/gm)];
+  if (matches.length) {
+    const gallery = el("div", "visual-shots");
+    for (const match of matches) {
+      const rel = workspaceRel(match[2].trim());
+      if (!rel) continue;
+      const shot = el("button", "visual-shot");
+      const img = document.createElement("img");
+      img.src = `/api/preview/${encPath(rel)}${wsq()}`;
+      img.alt = `${match[1]} visual verification screenshot`;
+      shot.append(img, el("span", "", match[1]));
+      shot.onclick = () => openAttachment({ name: rel, kind: "image", previewable: true });
+      gallery.append(shot);
+    }
+    if (gallery.children.length) card.append(gallery);
+  }
+}
+function addLoadedSkill(name, source = "automatic") {
+  const card = addTool("skill", JSON.stringify({ name }));
+  finishTool(card, source === "automatic"
+    ? `Automatically selected ${name} for this turn.`
+    : `Loaded ${name}.`);
+  return card;
 }
 function addActions(target, srcText, isLast) {
   const bar = el("div", "m-acts");
@@ -1070,25 +1516,29 @@ async function redoTurn(edit, barEl) {
     .map((it, i) => it.t === "user" ? i : -1).filter(i => i >= 0);
   if (turn > userIdx.length) return;
   const later = userIdx.length - turn;
-  if (later > 0 && !confirm(
-    `Redo this message? The ${later} later exchange(s) will be removed and ` +
-    `files the assistant changed after it will be restored.`)) return;
+  if (later > 0 && !await appConfirm("Redo earlier message?",
+    `The ${later} later exchange(s) will be removed and checkpointed file-tool changes after it will be restored.`,
+    "Redo", true)) return;
   let r;
   try { r = await post(`/sessions/${currentId}/revert`,
                        { display_index: userIdx[turn - 1] }); }
-  catch { return; }
+  catch (error) {
+    await appAlert("Could not redo message", error.message || String(error)); return;
+  }
   const s2 = await api(`/sessions/${currentId}`);
   renderDisplay(s2.display);
   refreshDrawer();
-  if (edit) { input.value = r.text; autogrow(); input.focus(); }
-  else sendMessage(r.text);
+  const restored = normalizeUserAttachments(r.text, r.attachments);
+  restoreAttachmentChips(restored.attachments);
+  if (edit) { input.value = restored.text; autogrow(); input.focus(); }
+  else sendMessage(restored.text);
 }
 function renderDisplay(display) {
   thread.innerHTML = "";
   if (!display || !display.length) { showWelcome(); return; }
   let lastBar = null;
   display.forEach((item, di) => {
-    if (item.t === "user") addUser(item.text, di);
+    if (item.t === "user") addUser(item.text, di, item.attachments);
     else if (item.t === "text") {
       const a = addAssistant(); a.innerHTML = renderMd(item.text);
       addActions(a, item.text, false);
@@ -1097,6 +1547,8 @@ function renderDisplay(display) {
     else if (item.t === "reasoning") {
       const th = addThink(false); th.querySelector(".body").textContent = item.text;
     }
+    else if (item.t === "steer") addSteer(item.text);
+    else if (item.t === "skill") addLoadedSkill(item.name, item.source);
     else if (item.t === "tool") { const c = addTool(item.name, item.args); finishTool(c, item.result); }
     else if (item.t === "notice") thread.append(el("div", "notice", item.text));
     else if (item.t === "error") thread.append(el("div", "errline", item.text));
@@ -1120,6 +1572,20 @@ const SUGGESTIONS = [
   ["Work on code", "read, edit, run, verify",
    "Write a Python script that renames all files in a folder to lowercase, and test it on a temp folder."],
 ];
+const CHAT_SUGGESTIONS = [
+  ["Brainstorm ideas", "explore possibilities together",
+   "Help me brainstorm ten thoughtful ideas for a low-key weekend project."],
+  ["Explain a concept", "clear and conversational",
+   "Explain opportunity cost with a practical everyday example."],
+  ["Rewrite something", "improve tone and clarity",
+   "Help me rewrite a message so it sounds warm, concise, and confident."],
+  ["Make a plan", "turn a goal into manageable steps",
+   "Help me make a realistic two-week plan for learning a new skill."],
+  ["Compare options", "reason through tradeoffs",
+   "Help me build a simple framework for comparing two difficult choices."],
+  ["Talk it through", "organize a complicated thought",
+   "I have a complicated idea. Ask me a few questions and help me clarify it."],
+];
 function showWelcome() {
   const w = el("div"); w.id = "welcome";
   const h = el("h2");
@@ -1127,9 +1593,13 @@ function showWelcome() {
   const greet = hour < 5 ? "Up late? How can I help" : hour < 12 ? "Good morning — what shall we make"
     : hour < 18 ? "Good afternoon — what shall we make" : "Good evening — what shall we make";
   h.innerHTML = `<span class="spark"><svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M12 3l1.9 5.9 6.1 3.1-6.1 3.1L12 21l-1.9-5.9L4 12l6.1-3.1z"/></svg></span> ${greet}?`;
-  w.append(h, el("p", "", `${status.model} · ${status.skills.length} skills · everything stays on this machine`));
+  const endpoint = endpointIsLocal(status.base_url) ? "local model endpoint" : "remote model endpoint";
+  const chatMode = currentMode() === "chat";
+  w.append(h, el("p", "", chatMode
+    ? `${status.model} · simple chat · ${endpoint}`
+    : `${status.model} · ${status.skills.length} skills · ${endpoint}`));
   const grid = el("div", "sugg-grid");
-  for (const [title, sub, prompt] of SUGGESTIONS) {
+  for (const [title, sub, prompt] of chatMode ? CHAT_SUGGESTIONS : SUGGESTIONS) {
     const c = el("div", "sugg");
     c.append(el("b", "", title), el("span", "", sub));
     c.onclick = () => { input.value = prompt; input.focus(); autogrow(); };
@@ -1139,16 +1609,28 @@ function showWelcome() {
 }
 
 /* ---------------- api ---------------- */
-const api = (p, opt) => fetch("/api" + p, opt).then(r => {
-  if (!r.ok) throw new Error(`${r.status} on ${p}`);
-  return r.json();
-});
+const api = async (p, opt) => {
+  const response = await fetch("/api" + p, opt);
+  const raw = await response.text();
+  let data = null;
+  try { data = raw ? JSON.parse(raw) : null; } catch {}
+  if (!response.ok) {
+    const detail = data?.detail || raw || `HTTP ${response.status}`;
+    throw new Error(`${response.status} on ${p}: ${detail}`);
+  }
+  return data;
+};
 const post = (p, body) => api(p, { method: "POST", headers: { "Content-Type": "application/json" },
   body: JSON.stringify(body || {}) });
 
 async function refreshSessions() {
-  sessions = await api("/sessions");
+  const sequence = ++refreshSessionsSequence;
+  const next = await api("/sessions");
+  if (sequence !== refreshSessionsSequence) return false;
+  sessions = next;
   renderSidebar();
+  syncActiveUI();
+  return true;
 }
 function convoRow(s, snippet) {
   const c = el("div", "convo" + (s.id === currentId ? " active" : ""));
@@ -1156,34 +1638,59 @@ function convoRow(s, snippet) {
   wrap.append(document.createTextNode(s.title));
   if (snippet) wrap.append(el("span", "snip", snippet));
   c.append(wrap);
+  if (s.queued) c.append(el("span", "jobstate",
+    `queued ${s.queue_position || ""}${s.pending_count ? ` · +${s.pending_count}` : ""}`.trim()));
+  else if (s.running) c.append(el("span", "jobstate",
+    `working${s.pending_count ? ` · +${s.pending_count}` : ""}`));
+  else if (s.pending_count) c.append(el("span", "jobstate", `${s.pending_count} queued`));
   const acts = el("span", "acts");
   const pin = iconBtn("", s.pinned ? "pinFill" : "pin", "",
                       s.pinned ? "Unpin" : "Pin to top");
   pin.onclick = async e => {
     e.stopPropagation();
-    await fetch(`/api/sessions/${s.id}`, { method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pinned: !s.pinned }) });
-    refreshSessions();
+    try {
+      await api(`/sessions/${s.id}`, { method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pinned: !s.pinned }) });
+      await refreshSessions();
+    } catch (err) { await appAlert("Could not update conversation", err.message); }
   };
   const ren = iconBtn("", "pencil", "", "Rename");
   ren.onclick = async e => {
     e.stopPropagation();
-    const t = prompt("Rename chat:", s.title);
-    if (t) { await fetch(`/api/sessions/${s.id}`, { method: "PATCH",
-      headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: t }) });
-      refreshSessions(); if (s.id === currentId) $("chat-title").textContent = t; }
+    const t = await appPrompt("Rename conversation", "Choose a new title.",
+                              s.title, "Conversation title");
+    if (t && t !== s.title) {
+      try {
+        const updated = await api(`/sessions/${s.id}`, { method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title: t }) });
+        await refreshSessions();
+        if (s.id === currentId) $("chat-title").textContent = updated.title;
+      } catch (err) { await appAlert("Could not rename conversation", err.message); }
+    }
   };
   const del = iconBtn("", "trash", "", "Delete");
   del.onclick = async e => {
     e.stopPropagation();
-    if (!confirm(`Delete "${s.title}"?`)) return;
-    if (s.id === runningSessionId) {
-      try { await post(`/sessions/${s.id}/stop`); } catch {}
+    if (!await appConfirm("Delete conversation?",
+        `“${s.title}” and its saved history will be permanently removed.`,
+        "Delete", true)) return;
+    if (activeTurns.has(s.id) || s.running || s.queued) {
+      try {
+        await post(`/sessions/${s.id}/stop`);
+        for (let i = 0; i < 50; i++) {
+          const state = await api(`/sessions/${s.id}`);
+          if (!state.running) break;
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      } catch {}
     }
-    await fetch(`/api/sessions/${s.id}`, { method: "DELETE" });
-    if (s.id === currentId) { currentId = null; newChat(); }
-    refreshSessions();
+    try {
+      await api(`/sessions/${s.id}`, { method: "DELETE" });
+      if (s.id === currentId) { currentId = null; newChat(); }
+      await refreshSessions();
+    } catch (err) { await appAlert("Could not delete conversation", err.message); }
   };
   acts.append(pin, ren, del); c.append(acts);
   c.onclick = () => openSession(s.id);
@@ -1191,24 +1698,32 @@ function convoRow(s, snippet) {
 }
 
 let _searchTimer = null;
+const sessionMode = session => session?.mode === "chat" ? "chat" : "agent";
+const modeSessions = mode => sessions.filter(session => sessionMode(session) === mode);
 function renderSidebar() {
   const box = $("convos");
   const q = $("search").value.trim();
+  const renderedMode = draftMode;
+  const scopedSessions = modeSessions(renderedMode);
   if (q.length >= 2) {           // full-content search, debounced
     clearTimeout(_searchTimer);
     _searchTimer = setTimeout(async () => {
       let results = [];
       try { results = await api("/search?q=" + encodeURIComponent(q)); } catch {}
+      if ($("search").value.trim() !== q || draftMode !== renderedMode) return;
+      results = results.filter(session => sessionMode(session) === renderedMode);
       box.innerHTML = "";
-      box.append(el("div", "group-label", `matches for “${q}”`));
+      box.append(el("div", "group-label",
+        `${renderedMode === "chat" ? "Chat" : "Code"} matches for “${q}”`));
       for (const s of results) box.append(convoRow(s, s.snippet));
-      if (!results.length) box.append(el("div", "empty", "No matches in any chat"));
+      if (!results.length) box.append(el("div", "empty",
+        `No matches in ${renderedMode === "chat" ? "chat" : "code"} history`));
     }, 220);
     return;
   }
   box.innerHTML = "";
-  const pinned = sessions.filter(s => s.pinned);
-  const rest = sessions.filter(s => !s.pinned);
+  const pinned = scopedSessions.filter(s => s.pinned);
+  const rest = scopedSessions.filter(s => !s.pinned);
   if (pinned.length) {
     box.append(el("div", "group-label", "Pinned"));
     for (const s of pinned) box.append(convoRow(s));
@@ -1227,15 +1742,30 @@ function renderSidebar() {
     box.append(label);
     for (const s of g.items) box.append(convoRow(s));
   }
-  if (!sessions.length) box.append(el("div", "empty", "No chats yet"));
+  if (!scopedSessions.length) box.append(el("div", "empty",
+    renderedMode === "chat" ? "No chat conversations yet" : "No code tasks yet"));
 }
 
 async function openSession(id) {
+  const sequence = ++openSessionSequence;
   let s;
   try { s = await api(`/sessions/${id}`); }
-  catch { refreshSessions(); return; }         // session was deleted
+  catch { refreshSessions().catch(() => {}); return; } // session was deleted
+  if (sequence !== openSessionSequence) return;
   currentId = id;
+  if (sessionMode(s) !== draftMode) {
+    modeAttachments[draftMode] = attachments;
+    draftMode = sessionMode(s);
+    attachments = modeAttachments[draftMode] || [];
+    renderChips();
+    localStorage.lmhMode = draftMode;
+  }
+  try { localStorage.setItem(`lmh-last-session:${draftMode}`, id); } catch {}
+  const cached = sessions.find(item => item.id === id);
+  if (cached) Object.assign(cached, s);
   sessionWs = s.workspace || null;
+  pendingFollowups = s.pending_messages || [];
+  renderFollowups();
   updateWsChip();
   $("chat-title").textContent = s.title;
   renderDisplay(s.display);
@@ -1245,11 +1775,13 @@ async function openSession(id) {
   if (!artifacts.length) document.body.classList.remove("art-open");
   renderArtifacts();
   // switching back into a chat that is still generating: replay the live turn
-  if (running && runningSessionId === id && turnEvents.length) {
-    liveRenderer = makeTurnRenderer();
-    for (const ev of turnEvents) liveRenderer.apply(ev);
+  const active = activeTurns.get(id);
+  if (active && !active.finished && active.events.length) {
+    active.renderer = makeTurnRenderer(active);
+    for (const ev of active.events) active.renderer.apply(ev);
     scrollDown(true);
   }
+  syncActiveUI();
   renderSidebar();
   restoreDraft();
   if (window.innerWidth <= 900) document.body.classList.add("sb-hidden");
@@ -1258,8 +1790,10 @@ async function openSession(id) {
 function newChat() {
   // purely client-side — the server session is created lazily on first
   // message, so abandoned "New chat"s never clutter the sidebar
+  openSessionSequence++;
   currentId = null;
   sessionWs = null;
+  pendingFollowups = []; renderFollowups();
   updateWsChip();
   $("chat-title").textContent = "New chat";
   thread.innerHTML = ""; showWelcome();
@@ -1269,30 +1803,78 @@ function newChat() {
   renderArtifacts();
   renderSidebar();
   restoreDraft();
+  syncActiveUI();
   input.focus();
 }
 function updateCtx(ctx) {
   if (!ctx) return;
-  const used = ctx.last_prompt_tokens || ctx.estimated_tokens || 0;
-  const pct = Math.min(100, Math.round(100 * used / (ctx.window || status.window)));
+  const used = ctx.estimated_tokens || ctx.last_prompt_tokens || 0;
+  const ceiling = ctx.compact_threshold || ctx.window || status.window;
+  const pct = Math.min(100, Math.round(100 * used / ceiling));
   $("ctxfill").style.width = pct + "%";
   $("ctxfill").style.background = pct > 70 ? "var(--err)" : "var(--accent)";
   $("ctxpct").textContent = pct + "%";
+  const breakdown = [
+    `Prompt: ${used.toLocaleString()} / ${ceiling.toLocaleString()} tokens before compaction`,
+    ctx.system_tokens != null ? `System: ${ctx.system_tokens.toLocaleString()}` : null,
+    ctx.tool_schema_tokens != null ? `Tools: ${ctx.tool_schema_tokens.toLocaleString()}` : null,
+    ctx.conversation_tokens != null ? `Conversation: ${ctx.conversation_tokens.toLocaleString()}` : null,
+    ctx.compact_target != null ? `Post-compaction target: ${ctx.compact_target.toLocaleString()}` : null,
+    ctx.compactions ? `Compacted ${ctx.compactions} time${ctx.compactions === 1 ? "" : "s"}` : null,
+    ctx.last_prompt_tokens ? `Last server-reported prompt: ${ctx.last_prompt_tokens.toLocaleString()}` : null,
+  ].filter(Boolean).join("\n");
+  document.querySelector(".ctxrow").title = breakdown;
 }
 
 /* ---------------- attachments ---------------- */
-let attachments = [];  // File objects waiting to be sent
+function renderFollowups() {
+  const box = $("followups"); box.innerHTML = "";
+  const session = sessions.find(item => item.id === currentId);
+  for (const item of pendingFollowups) {
+    const row = el("div", "followup");
+    row.append(el("span", "fq-text", item.text),
+               el("span", "fq-state", "Queued"));
+    if (session?.running) {
+      const steer = el("button", "", "↪ Steer");
+      steer.title = "Apply this message to the current turn instead";
+      steer.onclick = async () => {
+        try {
+          const result = await post(
+            `/sessions/${currentId}/followups/${item.id}/steer`);
+          pendingFollowups = result.pending_messages || [];
+          renderFollowups(); await refreshSessions();
+        } catch (error) { await appAlert("Could not steer message", error.message); }
+      };
+      row.append(steer);
+    }
+    const remove = el("button"); remove.innerHTML = svgIcon("trash", 12);
+    remove.title = "Remove queued message";
+    remove.onclick = async () => {
+      try {
+        const result = await api(
+          `/sessions/${currentId}/followups/${item.id}`, { method: "DELETE" });
+        pendingFollowups = result.pending_messages || [];
+        renderFollowups(); await refreshSessions();
+      } catch (error) { await appAlert("Could not remove queued message", error.message); }
+    };
+    row.append(remove); box.append(row);
+  }
+}
+
+let attachments = [];  // {file?, name, type, size, saved?} waiting to be sent
 function renderChips() {
   const box = $("chips"); box.innerHTML = "";
-  attachments.forEach((f, i) => {
+  attachments.forEach((item, i) => {
     const chip = el("span", "chip");
-    if (f.type.startsWith("image/")) {
+    if ((item.type || item.mime || "").startsWith("image/") || item.kind === "image") {
       const img = document.createElement("img");
-      img.src = URL.createObjectURL(f);
-      img.onload = () => URL.revokeObjectURL(img.src);
+      if (item.file) {
+        img.src = URL.createObjectURL(item.file);
+        img.onload = () => URL.revokeObjectURL(img.src);
+      } else img.src = attachmentUrl(item.name);
       chip.append(img);
     }
-    chip.append(el("span", "nm", f.name));
+    chip.append(el("span", "nm", item.name));
     const rm = el("span", "rm");
     rm.innerHTML = svgIcon("x", 10);
     rm.onclick = () => { attachments.splice(i, 1); renderChips(); };
@@ -1301,33 +1883,73 @@ function renderChips() {
   });
 }
 function addAttachments(fileList) {
+  const oversized = [];
   for (const f of fileList) {
-    if (f.size > 50 * 1024 * 1024) { alert(f.name + " is over 50 MB"); continue; }
-    attachments.push(f);
+    if (f.size > 50 * 1024 * 1024) { oversized.push(f.name); continue; }
+    attachments.push({ file: f, name: f.name, type: f.type, size: f.size, saved: false });
   }
+  if (oversized.length) appAlert("Attachment too large",
+    `${oversized.join(", ")} ${oversized.length === 1 ? "is" : "are"} over the 50 MB limit.`);
   renderChips();
   input.focus();
 }
 async function uploadAttachments() {
   if (!attachments.length) return [];
+  const existing = attachments.filter(item => item.saved);
+  const fresh = attachments.filter(item => item.file);
+  if (!fresh.length) {
+    attachments = []; renderChips();
+    return existing;
+  }
   document.querySelectorAll(".chip").forEach(c => c.classList.add("uploading"));
   const form = new FormData();
-  for (const f of attachments) form.append("files", f, f.name);
+  for (const item of fresh) form.append("files", item.file, item.name);
   const r = await fetch("/api/upload" + wsq(), { method: "POST", body: form });
   if (!r.ok) throw new Error("upload failed (" + r.status + ")");
-  const saved = (await r.json()).saved;
+  const payload = await r.json();
+  const uploaded = payload.attachments || (payload.saved || []).map(name => ({
+    name, kind: attachmentKind(name), size: null,
+    previewable: OFFICE_EXT.includes((name.split(".").pop() || "").toLowerCase()),
+  }));
   attachments = []; renderChips();
-  return saved;
+  return existing.concat(uploaded);
 }
 
 /* ---------------- streaming chat ----------------
    All rendering goes through a session-scoped renderer. If the user switches
    chats mid-generation, rendering pauses (events keep buffering); switching
    back replays the buffer so the live turn rebuilds exactly. */
-let runningSessionId = null, turnEvents = [], liveRenderer = null;
-
-function makeTurnRenderer() {
-  const r = { asst: null, think: null, toolCard: null, asstBuf: "", mdTimer: null };
+function makeTurnRenderer(state) {
+  const r = { asst: null, think: null, activity: null, toolCard: null,
+              asstBuf: "", mdTimer: null };
+  r.clearActivity = () => {
+    if (r.activity) { r.activity.remove(); r.activity = null; }
+  };
+  r.clearQueueNotice = () => {
+    if (state.queueNotice) { state.queueNotice.remove(); state.queueNotice = null; }
+  };
+  r.showActivity = data => {
+    if (!r.activity) {
+      r.activity = el("div", "generation-activity");
+      r.activity.append(el("span", "pulse"), el("span", "activity-label"));
+      thread.append(r.activity);
+    }
+    const elapsed = Math.max(0, Number(data.elapsed_seconds || 0));
+    const duration = elapsed >= 60
+      ? `${Math.floor(elapsed / 60)}m ${elapsed % 60}s` : `${elapsed}s`;
+    let label = "Model is working";
+    if (data.phase === "tool_arguments") {
+      const amount = data.characters >= 1024
+        ? `${(data.characters / 1024).toFixed(1)} KB`
+        : `${data.characters || 0} chars`;
+      label = `Preparing ${data.tool || "tool call"} · ${amount}`;
+    } else if (data.phase === "starting") label = "Starting model";
+    else if (data.phase === "reasoning") label = "Reasoning";
+    else if (data.phase === "answering") label = "Writing response";
+    else if (data.phase === "running_tool") label = `Running ${data.tool || "tool"}`;
+    if (data.idle_seconds >= 30) label += ` · no data for ${data.idle_seconds}s`;
+    r.activity.querySelector(".activity-label").textContent = `${label} · ${duration}`;
+  };
   r.flushMd = () => {
     if (r.asst) { r.asst.innerHTML = renderMd(r.asstBuf) + '<span class="cursor"></span>'; scrollDown(); }
   };
@@ -1345,11 +1967,16 @@ function makeTurnRenderer() {
   r.apply = ev => {
     if (ev.type === "user") {
       const w = $("welcome"); if (w) w.remove();
-      addUser(ev.data); scrollDown(true);
+      const user = typeof ev.data === "string" ? { text: ev.data, attachments: [] } : ev.data;
+      addUser(user.text, undefined, user.attachments); scrollDown(true);
     } else if (ev.type === "reasoning_delta") {
+      r.clearQueueNotice();
+      r.clearActivity();
       if (!r.think) { r.think = addThink(true); scrollDown(); }
       r.think.querySelector(".body").textContent += ev.data;
     } else if (ev.type === "content_delta") {
+      r.clearQueueNotice();
+      r.clearActivity();
       r.endThink();
       if (!r.asst) r.asst = addAssistant();
       r.asstBuf += ev.data;
@@ -1360,23 +1987,35 @@ function makeTurnRenderer() {
         upsertArtifact({ key: "live", label: "generating…", kind: "inline",
                          html: b.code, live: !!b.live }, wideView(), wideView());
       }
+    } else if (ev.type === "steer") {
+      r.endThink(); r.sealAsst(); addSteer(ev.data); scrollDown();
+    } else if (ev.type === "steer_applied") {
+      // The visible steer bubble is already in place; this event confirms the
+      // agent consumed it at a valid boundary in its model/tool sequence.
+    } else if (ev.type === "skill_loaded") {
+      r.clearQueueNotice();
+      addLoadedSkill(ev.data.name, ev.data.source); refreshDrawer(); scrollDown();
     } else if (ev.type === "tool_call") {
+      r.clearQueueNotice();
+      r.clearActivity();
       r.endThink(); r.sealAsst();
       r.toolCard = addTool(ev.data.name, ev.data.arguments); scrollDown();
     } else if (ev.type === "tool_result") {
       if (r.toolCard) {
         finishTool(r.toolCard, ev.data.result);
         onToolFinished(ev.data.name,
-                       r.toolCard.dataset.args || "", ev.data.result);
+                       r.toolCard.dataset.args || "", ev.data.result, state);
         r.toolCard = null;
       }
       refreshDrawer(); scrollDown();
     } else if (ev.type === "context") {
       thread.append(el("div", "notice", ev.data)); scrollDown();
     } else if (ev.type === "error") {
+      r.clearActivity();
       r.endThink(); r.sealAsst();
       thread.append(el("div", "errline", ev.data)); scrollDown();
     } else if (ev.type === "final") {
+      r.clearActivity();
       r.endThink();
       if (!r.asst) { r.asst = addAssistant(); r.asstBuf = ev.data; }
       else if (!r.asstBuf.trim()) r.asstBuf = ev.data;
@@ -1386,6 +2025,22 @@ function makeTurnRenderer() {
       updateCtx(ev.data);
     } else if (ev.type === "session") {
       $("chat-title").textContent = ev.data.title;
+    } else if (ev.type === "queue") {
+      if (!state.queueNotice) {
+        state.queueNotice = el("div", "notice");
+        thread.append(state.queueNotice);
+      }
+      state.queueNotice.textContent = `Queued · position ${ev.data.position}`;
+      scrollDown();
+    } else if (ev.type === "job") {
+      if (ev.data.state === "running" && state.queueNotice) {
+        state.queueNotice.textContent = "Starting…";
+      }
+    } else if (ev.type === "activity" || ev.type === "heartbeat") {
+      if (ev.type === "heartbeat" && ["reasoning", "answering"].includes(ev.data?.phase)
+          && Number(ev.data?.idle_seconds || 0) < 10) return;
+      r.clearQueueNotice();
+      r.showActivity(ev.data || {}); scrollDown();
     }
   };
   return r;
@@ -1400,84 +2055,184 @@ function armLastActions() {
 
 async function sendMessage(textOverride) {
   let text = (textOverride !== undefined ? textOverride : input.value).trim();
-  if ((!text && !attachments.length) || running) return;
+  if (!text && !attachments.length) return;
+  const sourceDraftKey = draftKey();
+  const current = sessions.find(item => item.id === currentId);
+  const busy = !!currentId && (activeTurns.has(currentId)
+    || current?.running || current?.queued);
+  if (busy) {
+    if (attachments.length) {
+      await appAlert("Attachments unavailable",
+        "Attachments cannot be added to a queued or steering message yet.");
+      return;
+    }
+    await sendFollowup(text);
+    return;
+  }
+  if (currentId && pendingSends.has(currentId)) return;
   if (!currentId) {
-    const m = await post("/sessions");
+    const m = await post("/sessions", { mode: currentMode() });
     currentId = m.id;
     sessionWs = m.workspace || null;
     updateWsChip();
-    refreshSessions();
+    await refreshSessions();
   }
   const sid = currentId;
-  running = true; runningSessionId = sid;
-  document.body.classList.add("running");
+  pendingSends.add(sid);
 
-  // attachments first — the message references them by name only (tiny
-  // context cost; the model reads them with tools/skills when needed)
+  // Upload first, then send filenames as structured display metadata. The
+  // server adds the compact workspace hint only to the model-facing prompt.
+  let savedAttachments = [];
   try {
-    const saved = await uploadAttachments();
-    if (saved.length) {
-      text = (text || "Please look at the attached file(s).")
-        + "\n\n[Attached files, saved in the workspace: " + saved.join(", ") + "]";
-    }
+    savedAttachments = await uploadAttachments();
+    if (!text && savedAttachments.length) text = "Please look at the attached file(s).";
   } catch (e) {
     thread.append(el("div", "errline", "Attachment upload failed: " + e.message));
-    running = false; runningSessionId = null;
-    document.body.classList.remove("running");
+    pendingSends.delete(sid);
     return;
   }
   if (textOverride === undefined) { input.value = ""; autogrow(); }
-  try { localStorage.removeItem(draftKey()); } catch {}
-  if (Notification?.permission === "default") Notification.requestPermission();
-  await snapshotFiles();
-
-  turnEvents = [{ type: "user", data: text }];
-  liveRenderer = makeTurnRenderer();
-  liveRenderer.apply(turnEvents[0]);
-
-  const handle = ev => {
-    turnEvents.push(ev);
-    if (ev.type === "session") refreshSessions();       // sidebar always fresh
-    if (currentId !== sid) return;                      // not visible — buffer only
-    liveRenderer.apply(ev);
+  try { localStorage.removeItem(sourceDraftKey); localStorage.removeItem(draftKey()); } catch {}
+  const state = {
+    sid, events: [], renderer: null,
+    filesSnapshot: await snapshotFiles(sid), queueNotice: null,
+    runScanTimer: null, finished: false,
   };
+  pendingSends.delete(sid);
+  activeTurns.set(sid, state);
+  state.renderer = makeTurnRenderer(state);
+  syncActiveUI();
+  refreshSessions().catch(() => {});
 
+  let accepted = false;
   try {
     const resp = await fetch("/api/chat", { method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ session_id: sid, message: text }) });
-    if (!resp.ok) throw new Error("HTTP " + resp.status);
-    const reader = resp.body.getReader(), dec = new TextDecoder();
-    let buf = "";
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buf += dec.decode(value, { stream: true });
-      const parts = buf.split("\n\n"); buf = parts.pop();
-      for (const part of parts) {
-        const line = part.trim();
-        if (line.startsWith("data:")) { try { handle(JSON.parse(line.slice(5))); } catch {} }
-      }
+      body: JSON.stringify({ session_id: sid, message: text,
+        attachments: savedAttachments.map(item => item.name) }) });
+    if (!resp.ok) {
+      let detail = "HTTP " + resp.status;
+      try { detail = (await resp.json()).detail || detail; } catch {}
+      throw new Error(detail);
     }
+    accepted = true;
+    await consumeTurnStream(state, resp);
   } catch (e) {
-    handle({ type: "error", data: String(e) });
+    if (!accepted && currentId === sid) {
+      input.value = text;
+      autogrow();
+      restoreAttachmentChips(savedAttachments);
+      try { localStorage.setItem(draftKey(), text); } catch {}
+    }
+    handleTurnEvent(state, { type: "error", data: String(e) });
   }
-  running = false; runningSessionId = null;
-  document.body.classList.remove("running");
-  refreshSessions();
+  await finishTurnStream(state);
+}
+
+function handleTurnEvent(state, ev) {
+  state.events.push(ev);
+  if (ev.type === "job" && ["done", "cancelled"].includes(ev.data.state))
+    state.finished = true;
+  if (["session", "queue", "job"].includes(ev.type))
+    refreshSessions().catch(() => {});
+  if (currentId !== state.sid) return;                  // buffer off-screen turns
+  if (!state.renderer) state.renderer = makeTurnRenderer(state);
+  state.renderer.apply(ev);
+}
+
+async function consumeTurnStream(state, resp) {
+  const reader = resp.body.getReader(), dec = new TextDecoder();
+  let buf = "", sawDone = false;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    const parts = buf.split("\n\n"); buf = parts.pop();
+    for (const part of parts) {
+      const line = part.trim();
+      if (line.startsWith("data:")) { try {
+        const event = JSON.parse(line.slice(5));
+        if (event.type === "done") sawDone = true;
+        else handleTurnEvent(state, event);
+      } catch {} }
+    }
+  }
+  if (!sawDone) throw new Error("response stream ended before completion");
+}
+
+async function finishTurnStream(state) {
+  const sid = state.sid;
+  if (activeTurns.get(sid) === state) activeTurns.delete(sid);
+  clearTimeout(state.runScanTimer);
+  syncActiveUI();
+  await refreshSessions();
   if (currentId === sid) {
-    liveRenderer.endThink(); liveRenderer.sealAsst();
+    if (state.renderer) { state.renderer.clearActivity(); state.renderer.endThink();
+      state.renderer.sealAsst(); }
     // finalize live artifact + open previews of files this turn created
     const li = artifacts.findIndex(a => a.key === "live");
     if (li >= 0) { artifacts[li].live = false;
       artifacts[li].key = "inline:live" + Date.now();
       artifacts[li].label = "html"; _pv.sig = null; renderArtifacts(); }
-    await autoOpenNewFiles();
+    await autoOpenNewFiles(state);
     armLastActions();
     refreshDrawer();
     input.focus();
   }
-  liveRenderer = null; turnEvents = [];
+  const latest = sessions.find(item => item.id === sid);
+  if (!state.deferReattach && currentId === sid && latest?.job_id
+      && (latest.running || latest.queued)) {
+    // A persisted same-chat follow-up may have started as the previous stream
+    // closed. Claim it immediately instead of waiting for the polling tick.
+    attachBackgroundJob(sid, latest.job_id);
+  } else if (currentId === sid && latest && !latest.running && !latest.queued) {
+    // The next turn can finish before polling observes it (especially with a
+    // fast local model). Re-read persisted display so no completed turn is lost.
+    await openSession(sid);
+  }
+}
+
+async function attachBackgroundJob(sid, jobId) {
+  if (!sid || !jobId || activeTurns.has(sid) || pendingSends.has(sid)) return;
+  const state = { sid, events: [], renderer: currentId === sid ? null : null,
+    filesSnapshot: await snapshotFiles(sid), queueNotice: null,
+    runScanTimer: null, finished: false };
+  activeTurns.set(sid, state); syncActiveUI();
+  try {
+    const resp = await fetch(`/api/jobs/${encodeURIComponent(jobId)}/stream`);
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    await consumeTurnStream(state, resp);
+  } catch (error) {
+    // A different window may already own this stream. Polling still refreshes
+    // the persisted result when it finishes, so a 409 is not shown as failure.
+    if (String(error).includes("409")) state.deferReattach = true;
+    if (!["404", "409"].some(code => String(error).includes(code)))
+      handleTurnEvent(state, { type: "error", data: String(error) });
+  }
+  await finishTurnStream(state);
+}
+
+async function sendFollowup(text) {
+  if (!currentId || pendingSends.has(currentId)) return;
+  const sid = currentId;
+  pendingSends.add(sid);
+  try {
+    const result = await post(`/sessions/${sid}/followups`, {
+      message: text, action: sendAction,
+    });
+    // The server has accepted the message; allow another queue/steer action
+    // before slower sidebar refresh work completes.
+    pendingSends.delete(sid);
+    pendingFollowups = result.pending_messages || [];
+    if (input.value.trim() === text) { input.value = ""; autogrow(); }
+    try { localStorage.removeItem(draftKey()); } catch {}
+    renderFollowups(); await refreshSessions();
+    if (result.started_job_id) attachBackgroundJob(sid, result.started_job_id);
+  } catch (error) {
+    await appAlert(`Could not ${sendAction} message`, error.message);
+  } finally {
+    pendingSends.delete(sid);
+  }
 }
 
 /* ---------------- drawer ---------------- */
@@ -1537,38 +2292,47 @@ function renderTree(nodes, container) {
 }
 /* ---- file management (Files tab) ---- */
 async function deletePath(path, isDir) {
-  if (!confirm(isDir
-      ? `Delete folder "${path}" and everything in it?`
-      : `Delete "${path}"?`)) return;
+  if (!await appConfirm(isDir ? "Delete folder?" : "Delete file?",
+      isDir ? `“${path}” and everything in it will be permanently removed.`
+            : `“${path}” will be permanently removed.`,
+      "Delete", true)) return;
   try {
     const r = await fetch(`/api/files/${encPath(path)}` + wsq(), { method: "DELETE" });
     if (!r.ok) throw new Error("HTTP " + r.status);
-  } catch (e) { alert("Could not delete: " + (e.message || e)); }
+  } catch (e) {
+    await appAlert("Could not delete", e.message || String(e)); return;
+  }
   filesSnapshot.delete(path);
   refreshDrawer();
 }
 async function renamePath(path) {
   const base = path.split("/").pop();
-  const nn = prompt("Rename to:", base);
+  const nn = await appPrompt("Rename item", `Rename “${base}”.`, base, "New name");
   if (!nn || nn === base) return;
   try {
     await post("/files/rename", { sid: currentId || undefined, path, new_name: nn });
-  } catch (e) { alert("Could not rename: " + (e.message || e)); return; }
+  } catch (e) {
+    await appAlert("Could not rename", e.message || String(e)); return;
+  }
   refreshDrawer();
 }
 async function newFolder() {
-  const n = prompt("New folder name:");
+  const n = await appPrompt("Create folder", "Create a folder in this workspace.",
+                            "", "Folder name");
   if (!n) return;
   try {
     await post("/files/mkdir", { sid: currentId || undefined, path: n });
-  } catch (e) { alert("Could not create folder: " + (e.message || e)); return; }
+  } catch (e) {
+    await appAlert("Could not create folder", e.message || String(e)); return;
+  }
   refreshDrawer();
 }
 
 async function refreshDrawer() {
   if (!$("drawer").classList.contains("open")) return;
   const body = $("drbody"); body.innerHTML = "";
-  if (drawerTab === "files") {
+  try {
+   if (drawerTab === "files") {
     const bar = el("div", "dr-toolbar");
     const ws = el("span", "ws-path", activeWs());
     ws.title = activeWs();
@@ -1582,7 +2346,7 @@ async function refreshDrawer() {
       return;
     }
     renderTree(t.tree, body);
-  } else if (drawerTab === "memory") {
+   } else if (drawerTab === "memory") {
     const m = await api("/memory");
     if (!m.content.trim()) {
       body.append(el("div", "empty",
@@ -1610,6 +2374,11 @@ async function refreshDrawer() {
         body.append(item);
       }
     }
+   }
+  } catch (error) {
+    body.innerHTML = "";
+    body.append(el("div", "errline",
+      `Could not load ${drawerTab}: ${error.message || error}`));
   }
 }
 function toggleDrawer(tab) {
@@ -1625,42 +2394,225 @@ function toggleDrawer(tab) {
 }
 
 /* ---------------- settings ---------------- */
+async function loadModels() {
+  const select = $("modelselect"), list = $("modellist");
+  const selected = status.model || "llm";
+  let models = [];
+  try { models = (await api("/models")).models || []; } catch {}
+  if (!models.some(model => model.id === selected))
+    models.unshift({ id: selected, n_ctx: null });
+  select.innerHTML = ""; list.innerHTML = "";
+  for (const model of models) {
+    const option = document.createElement("option");
+    option.value = model.id;
+    option.textContent = model.id + (model.n_ctx ? ` · ${model.n_ctx.toLocaleString()}` : "");
+    select.append(option);
+    const suggestion = document.createElement("option");
+    suggestion.value = model.id; list.append(suggestion);
+  }
+  select.value = selected;
+  select.title = models.length > 1 ? "Select active model" : "Active model (endpoint listed one model)";
+}
+
 async function openSettings() {
-  const s = await api("/settings");
+  clearTimeout(settingsPollTimer);
+  settingsDirty = false;
+  $("overlay").classList.add("open");
+  $("modal").setAttribute("aria-busy", "true");
+  setSettingsStatus("pending", "Loading settings…", true);
+  setSettingsControls(true, false);
+  let s;
+  try { s = await api("/settings"); }
+  catch (err) {
+    setSettingsStatus("error", "Could not load settings: " + err.message);
+    $("modal").setAttribute("aria-busy", "false");
+    setSettingsControls(false, false);
+    $("savemodal").disabled = true;
+    return;
+  }
+  populateSettings(s);
+  settingsDirty = false;
+  $("modal").setAttribute("aria-busy", "false");
+  setSettingsControls(false, false);
+  $("savemodal").disabled = true;
+  $("closemodal").textContent = "Close";
+  showSettingsHealth(s, false);
+  $("tslider").focus();
+}
+function populateSettings(s) {
   $("tslider").value = s.temperature; $("tval").textContent = s.temperature;
   $("urlinput").value = s.base_url;
   $("modelinput").value = s.model;
   $("keyinput").value = "";
   $("keyinput").placeholder = s.api_key_set ? "(key saved — type to replace)" : "not needed for local";
+  $("clearkey").checked = false;
+  $("clearkeylabel").style.display = s.api_key_set ? "block" : "none";
   $("ctxinput").value = s.context_window;
+  $("maxoutinput").value = s.max_output_tokens;
+  $("mcpinput").value = JSON.stringify(s.mcp_servers || {}, null, 2);
+  renderSettingsInfo(s);
+}
+function renderSettingsInfo(s) {
+  const mcpReady = (s.mcp_status || []).filter(x => x.state === "ready");
+  const mcpErrors = (s.mcp_status || []).filter(x => x.state === "error");
+  const effective = s.effective_context_window || s.context_window;
+  const computer = s.computer_control || {};
   $("setinfo").innerHTML =
+    (!endpointIsLocal(s.base_url)
+      ? `<span style="color:var(--err)">This remote endpoint receives model prompts and context.</span><br>`
+      : "") +
     (s.server_n_ctx ? `Model server reports a <b>${s.server_n_ctx.toLocaleString()}</b>-token context; ` +
-      `the window is clamped to it automatically. ` : "") +
-    `Compaction kicks in at <b>${s.compact_threshold.toLocaleString()}</b> tokens, and max ` +
-    `output per message automatically equals that same cutoff (clamped to the space left), ` +
-    `so responses never hit an artificial length limit.`;
-  $("overlay").classList.add("open");
+      `the effective window is <b>${effective.toLocaleString()}</b>. ` : "") +
+    `Compaction kicks in at <b>${s.compact_threshold.toLocaleString()}</b> tokens. ` +
+    `Each model call is capped at <b>${s.max_output_tokens.toLocaleString()}</b> output tokens ` +
+    `(and clamped further if the context is full).<br>` +
+    `<b>MCP:</b> ${mcpReady.length} connected` +
+    (mcpErrors.length ? `, <span style="color:var(--err)">${mcpErrors.length} failed</span>` : "") + `.<br>` +
+    `<b>Computer control:</b> ` + (computer.available
+      ? `${esc(computer.backend || "native accessibility")} · ${esc(computer.state || computer.source || "available")}` +
+        (computer.error ? ` · <span style="color:var(--err)">${esc(computer.error)}</span>` : "")
+      : `unavailable in this build`);
+}
+function setSettingsStatus(kind, message, spinning = false) {
+  const box = $("setstatus");
+  box.className = `set-status show ${kind}`;
+  box.replaceChildren();
+  if (spinning) box.append(el("span", "save-spinner"));
+  box.append(el("span", "", message));
+  if (kind !== "dirty")
+    requestAnimationFrame(() => box.scrollIntoView({ block: "nearest" }));
+}
+function setSettingsControls(disabled, saving) {
+  settingsSaving = saving;
+  $("modal").querySelectorAll("input, textarea").forEach(control => {
+    control.disabled = disabled;
+  });
+  $("closemodal").disabled = saving;
+  $("savemodal").disabled = disabled || !settingsDirty;
+  $("savemodal").textContent = saving ? "Saving…" : "Save changes";
+}
+function showSettingsHealth(s, saved) {
+  renderSettingsInfo(s);
+  const model = s.background?.model || { state: "idle" };
+  const mcp = s.background?.mcp || { state: "idle" };
+  const active = [model.state, mcp.state].some(state =>
+    state === "checking" || state === "connecting");
+  const errors = [model, mcp].filter(item => item.state === "error" && item.error)
+    .map(item => item.error);
+  if (active) {
+    setSettingsStatus("pending",
+      (saved ? "Settings saved. " : "") +
+      "Checking the model endpoint and MCP connections in the background…", true);
+  } else if (errors.length) {
+    setSettingsStatus("error",
+      (saved ? "Settings were saved, but a background check failed: " :
+        "A background check failed: ") + errors.join(" · "));
+  } else if (saved) {
+    setSettingsStatus("ok", "Settings saved and background checks completed.");
+  } else {
+    $("setstatus").className = "set-status";
+    $("setstatus").replaceChildren();
+  }
+  return active;
+}
+async function pollSettingsHealth(attempt = 0) {
+  if (!$("overlay").classList.contains("open")) return;
+  try {
+    const s = await api("/settings");
+    status.window = s.effective_context_window || s.context_window;
+    if (!showSettingsHealth(s, true)) return;
+  } catch (err) {
+    if (attempt >= 20) {
+      setSettingsStatus("error", "Settings were saved, but status refresh failed: " + err.message);
+      return;
+    }
+  }
+  if (attempt < 40)
+    settingsPollTimer = setTimeout(() => pollSettingsHealth(attempt + 1), 750);
+}
+async function requestCloseSettings() {
+  if (settingsSaving) return;
+  if (settingsDirty && !await appConfirm("Discard settings changes?",
+      "Your unsaved settings changes will be lost.", "Discard", true)) return;
+  clearTimeout(settingsPollTimer);
+  $("overlay").classList.remove("open");
+  $("settingsbtn").focus();
 }
 $("tslider").oninput = e => $("tval").textContent = e.target.value;
 $("savemodal").onclick = async () => {
+  if (settingsSaving) return;
+  let mcpServers;
+  try { mcpServers = JSON.parse($("mcpinput").value.trim() || "{}"); }
+  catch (e) {
+    setSettingsStatus("error", "MCP JSON is invalid: " + e.message);
+    $("mcpinput").focus();
+    return;
+  }
+  if (!$("urlinput").value.trim()) {
+    setSettingsStatus("error", "Base URL is required."); $("urlinput").focus(); return;
+  }
+  if (!$("modelinput").value.trim()) {
+    setSettingsStatus("error", "Model ID is required."); $("modelinput").focus(); return;
+  }
   const body = { temperature: +$("tslider").value,
     base_url: $("urlinput").value.trim(),
     model: $("modelinput").value.trim(),
-    context_window: +$("ctxinput").value || undefined };
-  if ($("keyinput").value.trim()) body.api_key = $("keyinput").value.trim();
+    context_window: +$("ctxinput").value || undefined,
+    max_output_tokens: +$("maxoutinput").value || undefined,
+    mcp_servers: mcpServers };
+  if ($("clearkey").checked) body.api_key = "";
+  else if ($("keyinput").value.trim()) body.api_key = $("keyinput").value.trim();
+  clearTimeout(settingsPollTimer);
+  setSettingsStatus("pending", "Saving settings to disk…", true);
+  $("modal").setAttribute("aria-busy", "true");
+  setSettingsControls(true, true);
   try {
     const s = await post("/settings", body);
     status.workspace = s.workspace;
+    status.model = s.model; status.base_url = s.base_url;
+    status.window = s.effective_context_window || s.context_window;
     updateWsChip();
-    $("modelbadge").textContent = s.model;
-    $("overlay").classList.remove("open");
-    refreshDrawer();
+    populateSettings(s);
+    settingsDirty = false;
+    $("closemodal").textContent = "Done";
+    showSettingsHealth(s, true);
+    loadModels().catch(() => {});
+    refreshDrawer().catch(() => {});
+    settingsPollTimer = setTimeout(() => pollSettingsHealth(), 500);
   } catch (e) {
-    $("setinfo").innerHTML = `<span style="color:var(--err)">Could not save: ${esc(String(e.message || e))}</span>`;
+    setSettingsStatus("error", "Could not save. Nothing was changed: " + String(e.message || e));
+  } finally {
+    $("modal").setAttribute("aria-busy", "false");
+    setSettingsControls(false, false);
   }
 };
-$("closemodal").onclick = () => $("overlay").classList.remove("open");
-$("overlay").onclick = e => { if (e.target === $("overlay")) $("overlay").classList.remove("open"); };
+$("modal").querySelectorAll("input, textarea").forEach(control => {
+  const markDirty = () => {
+    if (settingsSaving || !$("overlay").classList.contains("open")) return;
+    settingsDirty = true;
+    $("savemodal").disabled = false;
+    $("closemodal").textContent = "Close";
+    setSettingsStatus("dirty", "Unsaved changes.");
+  };
+  control.addEventListener("input", markDirty);
+  control.addEventListener("change", markDirty);
+});
+$("modelselect").onchange = async e => {
+  const previous = status.model, model = e.target.value;
+  if (!model || model === previous) return;
+  e.target.disabled = true;
+  try {
+    const saved = await post("/settings", { model });
+    status.model = saved.model;
+    status.window = saved.effective_context_window || saved.context_window;
+    loadModels().catch(() => {});
+  } catch (err) {
+    status.model = previous; e.target.value = previous;
+    await appAlert("Could not switch model", err.message);
+  } finally { e.target.disabled = false; }
+};
+$("closemodal").onclick = requestCloseSettings;
+$("overlay").onclick = e => { if (e.target === $("overlay")) requestCloseSettings(); };
 
 /* ---------------- theme ---------------- */
 function applyTheme(t) {
@@ -1705,9 +2657,9 @@ $("wschip").onclick = async () => {
     const r = await post("/workspace/browse", currentId ? { sid: currentId } : {});
     if (currentId) sessionWs = r.workspace;
     else status.workspace = r.workspace;
-    if (!r.cancelled) { refreshDrawer(); refreshSessions(); }
+    if (!r.cancelled) { refreshDrawer(); await refreshSessions(); }
   } catch (e) {
-    // picker already open or folder rejected — chip just resets
+    await appAlert("Could not change workspace", e.message || String(e));
   }
   chip.classList.remove("busy");
   updateWsChip();
@@ -1738,8 +2690,30 @@ composer.addEventListener("drop", e => {
   if (e.dataTransfer?.files?.length) addAttachments(e.dataTransfer.files);
 });
 document.addEventListener("keydown", e => {
-  if (e.key === "Escape" && running && runningSessionId)
-    post(`/sessions/${runningSessionId}/stop`);
+  if ($("appdialogoverlay").classList.contains("open")) {
+    if (e.key === "Escape") { e.preventDefault(); closeAppDialog(false); }
+    else if (e.key === "Tab") {
+      const focusable = [...$("appdialog").querySelectorAll("input, button")]
+        .filter(item => item.offsetParent !== null);
+      if (focusable.length) {
+        const first = focusable[0], last = focusable[focusable.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault(); last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault(); first.focus();
+        }
+      }
+    }
+    return;
+  }
+  if (e.key === "Escape" && $("attachpreview").classList.contains("open")) {
+    closeAttachmentPreview(); return;
+  }
+  if (e.key === "Escape" && $("overlay").classList.contains("open")) {
+    requestCloseSettings(); return;
+  }
+  if (e.key === "Escape" && running && currentId)
+    post(`/sessions/${currentId}/stop`);
   if ((e.ctrlKey || e.metaKey) && e.key === "k") { e.preventDefault(); newChat(); }
   if ((e.ctrlKey || e.metaKey) && e.key === "/") {
     e.preventDefault();
@@ -1748,20 +2722,60 @@ document.addEventListener("keydown", e => {
   }
   if (e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
     e.preventDefault();
-    if (!sessions.length) return;
-    const i = sessions.findIndex(s => s.id === currentId);
+    const scoped = modeSessions(draftMode);
+    if (!scoped.length) return;
+    const i = scoped.findIndex(s => s.id === currentId);
     const next = e.key === "ArrowUp"
-      ? (i <= 0 ? sessions.length - 1 : i - 1)
-      : (i >= sessions.length - 1 ? 0 : i + 1);
-    openSession(sessions[next].id);
+      ? (i <= 0 ? scoped.length - 1 : i - 1)
+      : (i >= scoped.length - 1 ? 0 : i + 1);
+    openSession(scoped[next].id);
   }
 });
 $("helpoverlay").addEventListener("click", e => {
   if (e.target === $("helpoverlay")) $("helpoverlay").style.display = "none";
 });
 $("sendbtn").onclick = () => sendMessage();
-$("stopbtn").onclick = () => runningSessionId && post(`/sessions/${runningSessionId}/stop`);
+$("stopbtn").onclick = () => currentId && post(`/sessions/${currentId}/stop`);
+$("sendmode").onclick = e => {
+  e.stopPropagation(); $("sendmenu").classList.toggle("open");
+};
+document.querySelectorAll("[data-send-action]").forEach(button => {
+  button.onclick = () => {
+    sendAction = button.dataset.sendAction;
+    localStorage.lmhSendAction = sendAction;
+    document.querySelectorAll("[data-send-action]").forEach(item =>
+      item.classList.toggle("active", item.dataset.sendAction === sendAction));
+    $("sendmenu").classList.remove("open"); syncActiveUI();
+  };
+  button.classList.toggle("active", button.dataset.sendAction === sendAction);
+});
+document.addEventListener("click", e => {
+  if (!$("sendmenu").contains(e.target) && e.target !== $("sendmode"))
+    $("sendmenu").classList.remove("open");
+});
 $("newchat").onclick = newChat;
+async function setConversationMode(mode) {
+  if (!['agent', 'chat'].includes(mode) || mode === currentMode()) return;
+  modeAttachments[draftMode] = attachments;
+  draftMode = mode;
+  attachments = modeAttachments[mode] || [];
+  renderChips();
+  localStorage.lmhMode = mode;
+  if (mode === "chat") {
+    $("drawer").classList.remove("open");
+    document.body.classList.remove("art-open");
+  }
+  currentId = null;
+  newChat();
+  let remembered = null;
+  try { remembered = localStorage.getItem(`lmh-last-session:${mode}`); } catch {}
+  const target = modeSessions(mode).find(session => session.id === remembered)
+    || modeSessions(mode)[0];
+  if (target) await openSession(target.id);
+}
+document.querySelectorAll("#modetoggle [data-mode]").forEach(button => {
+  button.onclick = () => setConversationMode(button.dataset.mode);
+});
 $("settingsbtn").onclick = openSettings;
 $("filesbtn").onclick = () => toggleDrawer("files");
 $("skillsbtn").onclick = () => toggleDrawer("skills");
@@ -1788,7 +2802,8 @@ $("exportbtn").onclick = async () => {
   const blob = new Blob([lines.join("\n")], { type: "text/markdown" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = (s.title || "chat").replace(/[^\w -]+/g, "").slice(0, 50) + ".md";
+  const safeTitle = (s.title || "chat").replace(/[^\w -]+/g, "").trim().slice(0, 50);
+  a.download = (safeTitle || "chat") + ".md";
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 5000);
 };
@@ -1798,7 +2813,7 @@ const baseTitle = document.title;
 function notifyDone(text) {
   if (!document.hidden) return;
   document.title = "done — " + baseTitle;
-  if (Notification?.permission === "granted") {
+  if ("Notification" in window && Notification.permission === "granted") {
     const n = new Notification("Little Harness finished", {
       body: (text || "Response ready").slice(0, 120), silent: false });
     n.onclick = () => { window.focus(); n.close(); };
@@ -1809,18 +2824,43 @@ document.addEventListener("visibilitychange", () => {
 });
 
 /* ---- scroll to bottom (tracks composer height so it never overlaps) ---- */
-scroller.addEventListener("scroll", () =>
-  $("scrolldown").classList.toggle("show", !nearBottom()));
+scroller.addEventListener("scroll", () => {
+  if (!settingTailScroll) followTail = nearBottom();
+  $("scrolldown").classList.toggle("show", !nearBottom());
+}, { passive: true });
+scroller.addEventListener("wheel", e => {
+  if (e.deltaY < 0) followTail = false;
+}, { passive: true });
 $("scrolldown").onclick = () => scrollDown(true);
 function placeScrollBtn() {
   $("scrolldown").style.bottom =
     (document.getElementById("composer-wrap").offsetHeight + 14) + "px";
 }
-new ResizeObserver(placeScrollBtn).observe($("composer-wrap"));
+const composerObserver = new ResizeObserver(() => {
+  placeScrollBtn();
+  scrollDown();
+});
+composerObserver.observe($("composer-wrap"));
+// Content can gain height without a new stream event (image decode, expanded
+// details, font/layout changes). Keep following only when the user was already
+// following the tail; scrolling upward turns this off.
+new ResizeObserver(() => scrollDown()).observe(thread);
 placeScrollBtn();
 
+const attachmentPreview = $("attachpreview");
+function closeAttachmentPreview() {
+  attachmentPreview.classList.remove("open");
+  attachmentPreview.querySelector("img").removeAttribute("src");
+}
+attachmentPreview.querySelector(".preview-close").onclick = closeAttachmentPreview;
+attachmentPreview.onclick = e => {
+  if (e.target === attachmentPreview) closeAttachmentPreview();
+};
+
 /* ---- draft persistence ---- */
-function draftKey() { return "lmh-draft:" + (currentId || "new"); }
+function draftKey() {
+  return "lmh-draft:" + (currentId || `new:${draftMode}`);
+}
 input.addEventListener("input", () => {
   try { localStorage.setItem(draftKey(), input.value); } catch {}
 });
@@ -1867,8 +2907,10 @@ $("artnewtab").onclick = () => {
   if (!a) return;
   if (a.kind === "file") window.open(`/api/preview/${encPath(a.name)}` + wsq());
   else {
-    const url = URL.createObjectURL(new Blob([a.html], { type: "text/html" }));
-    window.open(url); setTimeout(() => URL.revokeObjectURL(url), 30000);
+    // Blob URLs inherit this app's origin. Data URLs have an opaque origin,
+    // so model-authored HTML opened here cannot call the local app APIs.
+    const url = "data:text/html;charset=utf-8," + encodeURIComponent(a.html);
+    window.open(url, "_blank", "noopener,noreferrer");
   }
 };
 $("artdownload").onclick = () => {
@@ -1910,16 +2952,53 @@ $("artdivider").addEventListener("dblclick", () => {
 });
 
 /* ---------------- boot ---------------- */
+let _jobPollBusy = false;
+setInterval(async () => {
+  if (_jobPollBusy || !sessions.some(
+      s => s.running || s.queued || s.pending_count)) return;
+  _jobPollBusy = true;
+  const currentWasBackground = !!currentId && !activeTurns.has(currentId)
+    && !!sessions.find(s => s.id === currentId
+      && (s.running || s.queued || s.pending_count));
+  try {
+    await refreshSessions();
+    const currentState = sessions.find(s => s.id === currentId);
+    const currentStillActive = sessions.find(
+      s => s.id === currentId && (s.running || s.queued));
+    if (currentState && currentId) {
+      try {
+        const followups = await api(`/sessions/${currentId}/followups`);
+        pendingFollowups = followups.pending_messages || [];
+        renderFollowups();
+      } catch {}
+    }
+    if (currentStillActive?.job_id && !activeTurns.has(currentId))
+      attachBackgroundJob(currentId, currentStillActive.job_id);
+    if (currentWasBackground && !currentStillActive
+        && !currentState?.pending_count && currentId)
+      await openSession(currentId);
+  } catch {}
+  finally { _jobPollBusy = false; }
+}, 1500);
+
 (async function boot() {
   try {
     status = await api("/status");
-    $("modelbadge").textContent = status.model;
+    await loadModels();
     updateWsChip();
-  } catch { $("modelbadge").textContent = "offline"; }
-  await refreshSessions();
-  const latest = sessions[0];
+  } catch {
+    $("modelselect").innerHTML = '<option value="">offline</option>';
+  }
+  try { await refreshSessions(); }
+  catch { sessions = []; renderSidebar(); }
+  const latest = modeSessions(draftMode)[0];
   if (latest && latest.messages > 0) await openSession(latest.id);
   else await newChat();
+  document.body.classList.remove("booting");
+  $("newchat").disabled = false;
+  input.disabled = false;
+  input.placeholder = "Message Little Harness…  (paste or drop files here)";
+  $("sendbtn").disabled = false;
 
   // ?shot=… puts the UI into a named state for automated screenshots
   const q = new URLSearchParams(location.search);

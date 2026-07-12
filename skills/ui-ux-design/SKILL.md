@@ -8,6 +8,10 @@ hint: layout, hierarchy, flows users understand
 
 UI answers "does it look right?"; UX answers "does it work right for the person using it?". Both reduce to one principle: **reduce the user's cognitive load.** Every rule below serves that.
 
+## Verification is part of design
+
+Never finish UI work from source code alone. Run `visual_check` and personally inspect the attached desktop, tablet, and mobile screenshots. Capture important interaction states with `click_selector` and `state_label` (navigation open, modal open, validation errors, empty/loading states). Check for horizontal overflow, clipped text, broken imagery, weak contrast, inconsistent spacing, unclear hierarchy, and controls that disappear at narrow widths. Fix what you see and repeat the check until the screenshots support the claim that the interface is polished.
+
 ## Visual hierarchy — the 80% of "looking professional"
 
 The eye must know where to go first, second, third. Create hierarchy with (in order of power): **size, weight, color/contrast, spacing, position**. One screen = one primary action; make it visually loudest, and demote everything else deliberately (secondary buttons get outline style; tertiary get plain text links).

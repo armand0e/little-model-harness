@@ -93,9 +93,11 @@ def cmd_open(target):
             return
         except OSError:
             pass
-        r = subprocess.run(["powershell", "-NoProfile", "-Command",
-                            f"Start-Process '{target}'"],
-                           capture_output=True, text=True)
+        env = {**os.environ, "LMH_OPEN_TARGET": target}
+        r = subprocess.run(
+            ["powershell", "-NoProfile", "-Command",
+             "Start-Process -FilePath $env:LMH_OPEN_TARGET"],
+            capture_output=True, text=True, env=env)
     elif _MAC:
         # try as file/URL first, then as an application name
         r = subprocess.run(["open", target], capture_output=True, text=True)
@@ -130,13 +132,13 @@ def _mac_windows():
                      "Settings > Privacy & Security > Automation (a prompt "
                      "may be on screen now), then retry.")
         sys.exit(f"Could not list windows: {err}")
-    return [l for l in (r.stdout or "").splitlines() if l.strip()]
+    return [line for line in (r.stdout or "").splitlines() if line.strip()]
 
 
 def cmd_windows():
     if _MAC:
         lines = _mac_windows()
-        print("\n".join(f"- {l}" for l in lines[:40]) or "(no windows)")
+        print("\n".join(f"- {line}" for line in lines[:40]) or "(no windows)")
         return
     import pygetwindow as gw
     titles = [t for t in gw.getAllTitles() if t.strip()]
@@ -146,13 +148,14 @@ def cmd_windows():
 def cmd_focus(title):
     if _MAC:
         lines = _mac_windows()
-        match = next((l for l in lines if title.lower() in l.lower()), None)
+        match = next((line for line in lines if title.lower() in line.lower()), None)
         if not match:
             print(f"No window matching '{title}'. Use the windows command to list titles.")
             return
         app = match.split(" — ")[0].strip("- ").strip()
+        escaped_app = app.replace("\\", "\\\\").replace('"', '\\"')
         r = subprocess.run(["osascript", "-e",
-                            f'tell application "{app}" to activate'],
+                            f'tell application "{escaped_app}" to activate'],
                            capture_output=True, text=True, timeout=10)
         if r.returncode == 0:
             time.sleep(0.4)
@@ -229,6 +232,8 @@ def cmd_screenshot(path=None):
         os.makedirs(ws, exist_ok=True)
         path = os.path.join(ws, "screenshot.png")
     img = pg.screenshot()
+    parent = os.path.dirname(os.path.abspath(path))
+    os.makedirs(parent, exist_ok=True)
     img.save(path)
     print(f"Screenshot saved to {path} (screen is {img.width}x{img.height}). "
           f"Tell the user where it is — you cannot view it yourself.")
@@ -238,6 +243,12 @@ def main():
     if len(sys.argv) < 2:
         sys.exit(__doc__)
     cmd, args = sys.argv[1].lower(), sys.argv[2:]
+    arity = {
+        "open": 1, "focus": 1, "type": 1, "press": 1, "click": 2,
+        "doubleclick": 2, "rightclick": 2, "scroll": 1, "wait": 1,
+    }
+    if cmd in arity and len(args) < arity[cmd]:
+        sys.exit(f"Error: {cmd} requires {arity[cmd]} argument(s)\n{__doc__}")
     if cmd == "open":
         cmd_open(" ".join(args))
     elif cmd == "windows":
@@ -261,8 +272,12 @@ def main():
     elif cmd == "checkperms":
         cmd_checkperms()
     elif cmd == "wait":
-        time.sleep(min(float(args[0]), 30))
-        print(f"Waited {args[0]}s")
+        try:
+            seconds = min(max(float(args[0]), 0), 30)
+        except ValueError:
+            sys.exit("Error: wait requires a numeric number of seconds")
+        time.sleep(seconds)
+        print(f"Waited {seconds:g}s")
     else:
         sys.exit(f"Unknown command: {cmd}\n{__doc__}")
 

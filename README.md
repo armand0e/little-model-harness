@@ -9,6 +9,7 @@ web, control the computer, and work on code.
 ## Quick start
 
 ```powershell
+# Python 3.11 or newer
 pip install -r requirements.txt
 
 # terminal UI
@@ -22,8 +23,13 @@ The web app is a full local chat client: multiple conversations with
 history that survives restarts, live streaming with a
 collapsible thought process, expandable tool cards, a stop button (Esc),
 markdown + code blocks with copy, a workspace-files drawer with one-click
-downloads, a skills browser, settings (temperature, max output tokens),
+downloads, a skills browser, settings (temperature, model endpoint, and context window),
 search across chats, light/dark/system theming, and Ctrl+K for a new chat.
+
+Pasted and uploaded images appear directly in the user message and open into a
+full-size lightbox. Video and audio attachments play inline; documents and
+other supported files open in the artifact viewer. Attachment metadata is
+saved with the chat, while file contents remain in that chat's workspace.
 
 **Artifacts**: a split-view panel (▣, draggable divider) that previews what
 the agent makes — Word docs, Excel sheets (with formula tooltips),
@@ -38,14 +44,34 @@ endpoints, parsed server-side) plus `fetch`, which falls back to the
 keyless r.jina.ai reader for JS-heavy pages.
 
 **Attachments**: paste, drag-drop, or ＋-attach files/images into the
-composer. They're saved into the workspace and the message carries only
-their names (~15 tokens) — the model reads them with tools when needed,
-which is the context-frugal way for a small model.
+composer. They're saved into the workspace, rendered as previewable chips in
+the composer, and shown as image thumbnails or openable file cards in chat.
+The model-facing message carries compact workspace paths and reads file content
+with tools when needed, which keeps the prompt small.
 
 **Settings** (persisted in the data dir's `user_settings.json`):
-temperature, max output tokens (up to 16k), and the model endpoint — base
-URL, model ID, API key, context window. The Settings workspace field sets
+temperature, maximum output tokens per model call, and the model endpoint —
+base URL, model ID, API key, and context window. Every output request is capped
+by both the configured maximum and the space remaining in the active context.
+The Settings workspace field sets
 the **default folder new chats inherit**.
+
+**Model selector**: the model pill in the top bar is populated from the
+configured OpenAI-compatible `GET /v1/models` endpoint. Changing it updates
+all sessions, reconfigures existing clients, and re-detects that model's
+reported context window. A model ID can still be entered manually for servers
+that do not implement model listing.
+
+**Chat / Code modes**: the prominent top-bar switch changes between two
+separate conversation histories. Chat mode is a deliberately simple text
+conversation with no tool schemas, workspace controls, attachments, or
+artifact UI. Code mode exposes the full file, shell, web, skill, computer,
+and MCP environment. Switching surfaces restores that mode's last-opened
+conversation; it never silently converts an existing conversation.
+
+All confirmations, errors, destructive actions, and rename/create inputs use
+accessible in-app dialogs. The UI never relies on blocking browser
+`alert`, `confirm`, or `prompt` popups.
 
 **Per-chat workspaces**: every chat has its own working folder — the 📁
 chip above the message box shows it; click it and the OS-native folder
@@ -70,22 +96,50 @@ errors; per-tool-result caps scale with the window.
 
 **Long agentic turns**: the step limit is 100 (a runaway guard, not a
 budget). The real constraint is context: compaction fires when the
-conversation reaches `window − 16384` (16k of generation headroom,
-floored at half the window) — **including mid-turn**. Fading and
-compaction both work inside a single long turn (one user message, dozens
-of tool rounds), so a heavy debugging session compacts and continues
-instead of dying.
+conversation reaches `window − 8192` (at least 8k of generation headroom;
+larger output caps reserve `max_output_tokens + 512`) — **including mid-turn**.
+It targets two-thirds of that
+ceiling, rechecks the budget, and can compact again if one pass was not enough.
+Fading preserves user text while removing old images and tool payloads. If the
+model summarizer is unavailable, a deterministic handoff retains the goal and
+recent factual trace instead of silently dropping history.
+
+**Background queue**: different chats can submit work while the local model is
+busy. Jobs show queued/running state and position in the sidebar, stream when
+their turn begins, and can be cancelled independently. Queue state is written
+atomically to `jobs.json`; after an unclean restart, work that had not started
+is resumed. A job that was already running is recorded as interrupted rather
+than replayed, because its tool actions may already have changed files.
+
+While a chat is working, its composer remains available. New text can either
+be **queued** as that chat's next persisted turn or used to **steer** the
+current turn. Steering is applied at the next safe model boundary—after a
+model response or after all required tool results—so it cannot break tool-call
+ordering. Queued messages appear above the composer, can be removed, or can be
+promoted to a steer while the turn is still active.
 
 **Feedback from reality, automatically**: every `write_file`/`edit_file`
 comes back with a verification report in the same tool result — `.html`
-files are loaded in a headless browser and console errors / uncaught
-exceptions / failed resource loads are reported (the way a user would see
-them), `.py` gets a syntax check, `.js` gets `node --check`. The model
-fixes its own bugs before claiming success, at zero extra steps.
+files are rendered in a real headless Chromium browser at desktop and mobile
+sizes. Screenshots are shown in the tool card and attached to vision-capable
+models, alongside horizontal-overflow, broken-image, console, uncaught-error,
+and failed-resource diagnostics. `.py` gets a syntax check and `.js` gets
+`node --check`.
+
+The explicit `visual_check` tool captures desktop/tablet/mobile views of an
+HTML file or localhost app. It can click a CSS selector, scroll an element
+into view, label the resulting state, wait for animation/data settling, and
+optionally capture the full page. The system and coding/UI skills require the
+model to inspect those images, exercise important menus/modals/error/empty
+states, fix visible issues, and re-run the check. A clean console alone is
+never described as visual verification. Generated QA screenshots live under
+the workspace's hidden `.lmh/visual-qa` directory and are rotated automatically.
 
 **Revert**: hover any of your messages and hit ⤺ to rewind the chat to
-that point AND restore every file the assistant wrote or edited after it
-(before-images are checkpointed automatically). Regenerate/edit-prompt use
+that point and restore files changed through `write_file` / `edit_file`
+(before-images up to 500 KB are checkpointed automatically, including changes
+made by a subtask). Arbitrary filesystem changes made through shell commands
+cannot be checkpointed. Regenerate/edit-prompt use
 the same machinery, so redoing a turn starts from a clean slate.
 
 **The learning loop** (Hermes-style): the agent can `remember` durable
@@ -132,11 +186,11 @@ This harness assumes neither, and is built around a strict token budget:
 | Layer | Mechanism | Cost |
 |---|---|---|
 | System prompt | Short, imperative, ~300 tokens | always |
-| Tools | 8 core tools with minimal schemas (~700 tokens) | always |
-| Skills | Category-grouped index of short hints in prompt; full instructions injected only when the model calls `skill(name)` | on demand |
+| Tools | 14 core tools with compact schemas (~1,500 tokens) | always |
+| Skills | Deterministic task routing injects the most relevant full instructions; the model can load additional skills with `skill(name)` | per Code turn |
 | Tool results | Hard-capped at insertion (6k chars, head+tail) | per call |
 | Fading | Tool results older than 2 user turns collapse to a stub | automatic |
-| Compaction | Model summarizes the older half of the chat when the estimated prompt passes 20k tokens | automatic |
+| Compaction | Model summarizes older context at `window - reserve` (16,384 tokens by default) | automatic |
 
 Token estimates are continuously calibrated against the exact
 `usage.prompt_tokens` the server reports, so the meter stays honest.
@@ -160,10 +214,17 @@ index, so keep it tight). The office skills pair instructions with
 and the script does the fiddly library work — far more reliable for small
 models than generating `python-docx` code:
 
+At the start of every Code turn, the harness refreshes the catalog and
+deterministically selects up to three relevant skills from the request. Each
+selection is visible as a completed skill card in the conversation. This does
+not depend on a small model remembering to call a tool; it may still call
+`skill(name)` when it needs a specialist skill the router did not select.
+
 - **documents** — Markdown → styled .docx (`md2docx.py`); readers for .docx and .pdf
 - **spreadsheets** — JSON spec → .xlsx with live formulas, styled headers, auto-width (`make_xlsx.py`); .xlsx reader
 - **presentations** — Markdown outline → .pptx with title/bullet/statement slides and speaker notes (`md2pptx.py`); .pptx reader
-- **computer** — open apps, focus windows, type, press hotkeys, click, screenshot (`computer.py`, keyboard-first because the model can't see the screen)
+- **computer** — semantic app state, accessibility element IDs, keyboard/mouse,
+  and model-visible screenshots through the bundled native OS backend
 - **coding** — orient → plan → smallest edit → verify workflow rules
 - **research** — fetch-based web research with source citing
 
@@ -173,9 +234,42 @@ index automatically on next start.
 
 ## Core tools
 
-`read_file, write_file, edit_file, list_dir, search, run (PowerShell),
-fetch (web page → text), skill` — everything else goes through `run` +
-skill scripts, which keeps the always-loaded schema surface tiny.
+`read_file`, `write_file`, `edit_file`, `visual_check`, `list_dir`, `search`, `run`
+(PowerShell/bash), `web_search`, `fetch`, `skill`, `save_skill`, `remember`,
+`history_search`, `subtask`, and `computer`. The single compact `computer`
+schema fronts nine native MCP operations; specialized document, spreadsheet,
+presentation, and domain workflows still go through `run` plus skill scripts.
+
+### MCP servers
+
+Code mode is an MCP client for persistent local stdio servers. Configure the
+same command/args shape used by Claude Desktop in Settings:
+
+```json
+{
+  "filesystem": {
+    "command": "npx",
+    "args": ["-y", "@modelcontextprotocol/server-filesystem", "C:\\Work"],
+    "env": {},
+    "enabled": true
+  }
+}
+```
+
+The packaged app automatically attaches
+[`@qwen-code/open-computer-use` 0.2.3](https://github.com/QwenLM/open-computer-use)
+under its MIT license. The build verifies the npm artifact's pinned SHA-256
+and bundles only the current OS/architecture runtime: Windows UI Automation,
+macOS Accessibility, or Linux AT-SPI. It is shown separately from editable
+third-party MCP JSON in Settings. Set `LMH_DISABLE_COMPUTER_USE=1` to disable
+it; source runs may point `LMH_COMPUTER_USE_BIN` at a trusted installation.
+
+Servers connect once and remain alive; discovered tools are namespaced as
+`mcp_<server>_<tool>` so they cannot replace a core harness tool. Invalid or
+offline servers are isolated from the others and reported in Settings. Up to
+20 servers and 200 MCP tools are accepted. This initial client supports tools
+over local stdio; remote OAuth/Streamable HTTP, MCP resources, and MCP prompts
+are not yet exposed.
 
 ## Layout
 
@@ -186,6 +280,7 @@ harness/          core package
   skills.py       skill index + on-demand loading
   tokens.py       estimation + calibration against real usage
   llm.py          OpenAI-compatible client w/ streaming + tool-call assembly
+  mcp_client.py   persistent local stdio MCP connections + tool discovery
   tools/          core tool implementations
   tui.py          terminal UI      (python -m harness.tui)
   server.py       web UI backend   (python -m harness.server [port])
@@ -200,7 +295,7 @@ test_context.py   fading/compaction synthetic test
   skills/         skills the agent saved with save_skill
   workspace/      fallback default workspace
   memory.md       remember-tool facts
-  user_settings.json, browser-profile/
+  user_settings.json, jobs.json, browser-profile/
 ```
 
 ## Packaging as an app
@@ -214,7 +309,7 @@ an icon like any other app. No terminal, no browser tab.
 # (Inno Setup; winget install JRSoftware.InnoSetup). The installer puts the
 # app in %LOCALAPPDATA%\Programs\LittleHarness with a Start Menu entry,
 # optional desktop icon, and an uninstaller — no admin rights needed.
-powershell -File packaginguild_windows.ps1
+powershell -File packaging\build_windows.ps1
 ```
 
 ```bash
@@ -227,12 +322,16 @@ bash packaging/build_appimage.sh
 bash packaging/build_macos.sh
 ```
 
-No Mac (or Linux) machine? `.github/workflows/build.yml` builds all
-platforms on GitHub Actions: run it from the Actions tab, or push a tag
-like `v1.0.0` to get a release with the Windows installer, Linux
-AppImage, and Intel + Apple Silicon DMGs attached.
+No Mac (or Linux) machine? `.github/workflows/build.yml` builds and
+smoke-tests every platform on its native GitHub Actions runner. Every push to
+`main` produces downloadable workflow artifacts. Pushing an `X.Y.Z` tag such
+as `v1.0.0` also creates or updates the GitHub release with the Windows x64
+installer, Linux x86_64 AppImage, Intel DMG, Apple Silicon DMG, and a
+`SHA256SUMS.txt` manifest. The macOS jobs use explicit ARM64 and Intel runner
+labels so a future `macos-latest` migration cannot silently change the target.
 
-The bundle contains the server, web UI, bundled skills, and every library
+The bundle contains the server, web UI, bundled skills, the pinned native
+computer-use MCP (with its license/source manifest), and every library
 the skill helper scripts need. Machines without Python still run skill
 scripts: inside the app, `python` is aliased to the bundled interpreter
 (`LittleHarnessCLI --runpy`). Web tools use your installed Chrome/Edge;
@@ -243,17 +342,29 @@ workflow.
 
 ## Safety notes
 
-The `run` tool executes PowerShell (bash on macOS/Linux) and the computer
-skill controls your mouse/keyboard — the agent has the same power as your
+The `run` tool executes PowerShell (bash on macOS/Linux) and the `computer`
+tool controls desktop apps — the agent has the same power as your
 user account. Watch what it does (both UIs show every command before its
-output), and don't point it at untrusted instructions. pyautogui's
-failsafe is on: slam the mouse into the top-left corner to abort desktop
-automation.
+output), and review consequential actions. Uploaded files, fetched pages,
+search results, and tool output are treated as untrusted data in the system
+prompt, but a local model can still make mistakes. HTML artifacts run in a
+sandboxed, opaque-origin frame; workspace file APIs are loopback-only and
+path-confined. A remote model endpoint receives the prompts, memory, project
+notes, and tool context sent to the model, and the Settings screen warns when
+the configured endpoint is not local. Stop generation immediately if an
+action heads in the wrong direction. The legacy pyautogui fallback also
+supports its top-left-corner failsafe.
 
-On macOS, desktop automation is gated by the system: the first
-type/click/screenshot/window action pops permission prompts, and the app
-must be enabled under System Settings > Privacy & Security >
-**Accessibility** (keyboard/mouse), **Screen Recording** (screenshots),
-and **Automation** (window control via System Events). The computer
-skill detects missing grants and tells the model to walk the user
-through enabling them (`checkperms` reports the current state).
+MCP server commands also execute locally with your user account. Install only
+servers you trust, review their command/arguments and requested environment
+variables, and restrict filesystem-server roots to the folders they actually
+need.
+
+On macOS, desktop automation is gated by the system: the first native state,
+screenshot, or action request may prompt, and the app must be enabled under
+System Settings > Privacy & Security > **Accessibility** (semantic UI and
+input) and **Screen Recording** (screenshots). On Linux it needs a signed-in
+graphical session with AT-SPI2 and the session D-Bus available. On Windows it
+must run in the signed-in interactive desktop session rather than as a
+service. Readiness errors are returned directly to the model instead of
+encouraging coordinate guessing.
