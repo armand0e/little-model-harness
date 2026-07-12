@@ -19,12 +19,12 @@ jobs:
   test:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           cache: pip
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: "22"
       - name: Install test dependencies
@@ -44,13 +44,13 @@ jobs:
     needs: test
     runs-on: windows-2025
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           architecture: x64
           cache: pip
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version: "1.24.x"
           cache: false
@@ -91,7 +91,7 @@ jobs:
           $installer = Get-Item "dist\LittleHarness-Setup.exe"
           if ($installer.Length -lt 1MB) { throw "Installer is unexpectedly small" }
           Get-FileHash $installer.FullName -Algorithm SHA256
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: LittleHarness-Windows-x64
           path: dist/LittleHarness-Setup.exe
@@ -104,8 +104,8 @@ jobs:
     # The explicit image fixes the oldest glibc the AppImage requires.
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           architecture: x64
@@ -142,7 +142,7 @@ jobs:
           }
           python -c 'import json, os; d=json.load(open(os.environ["RUNNER_TEMP"] + "/lmh-status.json")); assert d.get("workspace")'
           sha256sum dist/LittleHarness-x86_64.AppImage
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: LittleHarness-Linux-x86_64
           path: dist/LittleHarness-x86_64.AppImage
@@ -166,8 +166,8 @@ jobs:
             arch: x86_64
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           architecture: ${{ matrix.python_arch }}
@@ -187,7 +187,7 @@ jobs:
           hdiutil verify dist/LittleHarness.dmg
           mv dist/LittleHarness.dmg "dist/LittleHarness-macOS-${{ matrix.arch }}.dmg"
           shasum -a 256 "dist/LittleHarness-macOS-${{ matrix.arch }}.dmg"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: LittleHarness-macOS-${{ matrix.arch }}
           path: dist/LittleHarness-macOS-${{ matrix.arch }}.dmg
@@ -202,7 +202,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           merge-multiple: true
           path: dist

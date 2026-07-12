@@ -25,7 +25,9 @@ def acquire_instance_lock() -> bool:
             handle.flush()
         handle.seek(0)
         if os.name == "nt":
-            import msvcrt
+            # Like fcntl below, msvcrt is intentionally imported dynamically:
+            # the opposite platform's typeshed exposes only a partial stub.
+            msvcrt: Any = importlib.import_module("msvcrt")
             msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
         else:
             # ``fcntl`` does not exist in the Windows typeshed, even though
@@ -49,7 +51,7 @@ def release_instance_lock() -> None:
     try:
         handle.seek(0)
         if os.name == "nt":
-            import msvcrt
+            msvcrt: Any = importlib.import_module("msvcrt")
             msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
         else:
             fcntl: Any = importlib.import_module("fcntl")
