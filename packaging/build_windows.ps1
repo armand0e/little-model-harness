@@ -35,9 +35,12 @@ if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed ($LASTEXITCODE)" }
 Write-Host ""
 Write-Host "Built dist\LittleHarness\LittleHarness.exe"
 
-$iscc = @("$env:ProgramFiles(x86)\Inno Setup 6\ISCC.exe",
+$isccOnPath = Get-Command ISCC.exe -ErrorAction SilentlyContinue |
+              Select-Object -ExpandProperty Source -First 1
+$iscc = @("${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
           "$env:ProgramFiles\Inno Setup 6\ISCC.exe",
-          "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe") |
+          "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe",
+          $isccOnPath) |
         Where-Object { Test-Path $_ } | Select-Object -First 1
 if ($iscc) {
     # ISCC is a GUI-subsystem executable, so PowerShell's call operator can
@@ -51,6 +54,9 @@ if ($iscc) {
     }
     Write-Host "Built dist\LittleHarness-Setup.exe"
 } else {
+    if ($env:CI) {
+        throw "Inno Setup is required for CI installer builds but ISCC.exe was not found"
+    }
     Write-Host "Inno Setup not found - skipped the installer. Install with:"
     Write-Host "  winget install JRSoftware.InnoSetup"
 }
