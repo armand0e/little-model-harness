@@ -9,32 +9,50 @@ from __future__ import annotations
 import json
 
 CHARS_PER_TOKEN = 4.0
+NON_ASCII_CHARS_PER_TOKEN = 1.0
 MSG_OVERHEAD = 8  # per-message chat-template overhead
 
 
 def estimate_text(text: str) -> int:
     if not text:
         return 0
-    return max(1, int(len(text) / CHARS_PER_TOKEN))
+    # A single global chars/token ratio badly undercounts CJK, emoji, and many
+    # mixed-language prompts before endpoint usage can calibrate us. Treat
+    # non-ASCII code points conservatively; the live calibrator recovers any
+    # model-specific overestimate after the first response.
+    ascii_chars = sum(1 for char in text if ord(char) < 128)
+    non_ascii_chars = sum(2 if ord(char) > 0xFFFF else 1
+                          for char in text if ord(char) >= 128)
+    return max(1, int(ascii_chars / CHARS_PER_TOKEN
+                      + non_ascii_chars / NON_ASCII_CHARS_PER_TOKEN))
 
 
 IMAGE_TOKENS = 800  # rough per-image cost; base64 length is NOT the cost
 
 
 def estimate_message(msg: dict) -> int:
+    if not isinstance(msg, dict):
+        return MSG_OVERHEAD
     n = MSG_OVERHEAD
     content = msg.get("content") or ""
     if isinstance(content, str):
         n += estimate_text(content)
     elif isinstance(content, list):  # multimodal: text parts + images
         for part in content:
+            if not isinstance(part, dict):
+                continue
             if part.get("type") == "text":
-                n += estimate_text(part.get("text", ""))
+                n += estimate_text(str(part.get("text", "")))
             elif part.get("type") == "image_url":
                 n += IMAGE_TOKENS
     for tc in msg.get("tool_calls") or []:
+        if not isinstance(tc, dict):
+            continue
         fn = tc.get("function", {})
-        n += estimate_text(fn.get("name", "")) + estimate_text(fn.get("arguments", "")) + 10
+        if not isinstance(fn, dict):
+            continue
+        n += (estimate_text(str(fn.get("name", "")))
+              + estimate_text(str(fn.get("arguments", ""))) + 10)
     return n
 
 

@@ -10,13 +10,13 @@ for _stream in (sys.stdout, sys.stderr):
     if hasattr(_stream, "reconfigure"):
         _stream.reconfigure(encoding="utf-8", errors="replace")
 
-from rich.console import Console
-from rich.markdown import Markdown
-from rich.panel import Panel
-from rich.rule import Rule
-from rich.text import Text
+from rich.console import Console  # noqa: E402
+from rich.markdown import Markdown  # noqa: E402
+from rich.panel import Panel  # noqa: E402
+from rich.rule import Rule  # noqa: E402
+from rich.text import Text  # noqa: E402
 
-from .agent import Agent
+from .agent import Agent  # noqa: E402
 
 console = Console()
 
@@ -67,6 +67,11 @@ class TuiRenderer:
             self._flush_content()
             console.print(Text(f"  ⚙ {data['name']}({_fmt_args(data['arguments'])})",
                                style="cyan"))
+        elif etype == "skill_loaded":
+            self._end_reasoning()
+            console.print(Text(
+                f"  ✦ skill({data['name']}) — automatically selected",
+                style="magenta"))
         elif etype == "tool_result":
             preview = (data["result"] or "").strip().splitlines()
             head = preview[0][:100] if preview else "(empty)"

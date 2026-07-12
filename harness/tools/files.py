@@ -2,11 +2,15 @@
 from __future__ import annotations
 
 import fnmatch
+import itertools
 import os
+import tempfile
 from pathlib import Path
 
 MAX_LIST = 100
 MAX_MATCHES = 50
+MAX_READ_CHARS = 100_000
+MAX_LINE_CHARS = 4000
 
 
 def _resolve(path: str, base: Path | None = None) -> Path:
@@ -19,6 +23,49 @@ def _resolve(path: str, base: Path | None = None) -> Path:
 
 
 IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}
+
+
+def _atomic_write_bytes(path: Path, content: bytes) -> None:
+    """Replace a file without leaving it truncated after interruption."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(
+        prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
+    try:
+        with os.fdopen(fd, "wb") as f:
+            f.write(content)
+            f.flush()
+            os.fsync(f.fileno())
+        if path.exists():
+            try:
+                os.chmod(tmp_name, path.stat().st_mode)
+            except OSError:
+                pass
+        os.replace(tmp_name, path)
+    except BaseException:
+        try:
+            os.unlink(tmp_name)
+        except OSError:
+            pass
+        raise
+
+
+def _atomic_write_text(path: Path, content: str) -> None:
+    _atomic_write_bytes(path, content.encode("utf-8"))
+
+
+def _bounded_text_lines(f):
+    """Yield physical lines without ever loading an unbounded line."""
+    while True:
+        segment = f.readline(MAX_LINE_CHARS + 1)
+        if not segment:
+            return
+        truncated = (len(segment) > MAX_LINE_CHARS
+                     and not segment.endswith(("\n", "\r")))
+        shown = segment[:MAX_LINE_CHARS]
+        if truncated:
+            while segment and not segment.endswith(("\n", "\r")):
+                segment = f.readline(MAX_LINE_CHARS + 1)
+        yield shown.rstrip("\r\n") + (" …[line truncated]" if truncated else "")
 
 
 def read_file(path: str, start_line: int = 1, max_lines: int = 200,
@@ -37,23 +84,36 @@ def read_file(path: str, start_line: int = 1, max_lines: int = 200,
         return (f"This is a {p.suffix} file, not plain text. Load the matching "
                 f"skill (documents/spreadsheets/presentations) and use its "
                 f"read script instead.")
-    try:
-        lines = p.read_text(encoding="utf-8", errors="replace").splitlines()
-    except Exception as e:
-        return f"Error reading {p}: {e}"
-    total = len(lines)
     start = max(1, start_line)
-    chunk = lines[start - 1:start - 1 + max_lines]
-    out = "\n".join(f"{i}| {l}" for i, l in enumerate(chunk, start))
-    if start - 1 + len(chunk) < total:
-        out += f"\n... ({total} lines total; continue with start_line={start + len(chunk)})"
+    limit = min(max(1, max_lines), 2000)
+    try:
+        with p.open("r", encoding="utf-8", errors="replace") as f:
+            lines = _bounded_text_lines(f)
+            chunk: list[str] = []
+            chars = 0
+            stopped_for_chars = False
+            for line in itertools.islice(lines, start - 1, start - 1 + limit + 1):
+                if chunk and chars + len(line) > MAX_READ_CHARS:
+                    stopped_for_chars = True
+                    break
+                chunk.append(line)
+                chars += len(line)
+    except (OSError, UnicodeError) as e:
+        return f"Error reading {p}: {e}"
+    has_more = len(chunk) > limit or stopped_for_chars
+    chunk = chunk[:limit]
+    out = "\n".join(
+        f"{i}| {line}"
+        for i, line in enumerate(chunk, start)
+    )
+    if has_more:
+        out += f"\n... (more lines; continue with start_line={start + len(chunk)})"
     return out or "(empty file)"
 
 
 def write_file(path: str, content: str, base: Path | None = None) -> str:
     p = _resolve(path, base)
-    p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(content, encoding="utf-8")
+    _atomic_write_text(p, content)
     return f"Wrote {len(content)} chars to {p}"
 
 
@@ -62,13 +122,19 @@ def edit_file(path: str, old_text: str, new_text: str,
     p = _resolve(path, base)
     if not p.exists():
         return f"Error: file not found: {p}"
-    text = p.read_text(encoding="utf-8", errors="replace")
+    try:
+        text = p.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        return ("Error: file is not valid UTF-8 text; refusing to edit it "
+                "because rewriting it would corrupt its bytes.")
+    except OSError as e:
+        return f"Error reading {p}: {e}"
     n = text.count(old_text)
     if n == 0:
         return "Error: old_text not found in file. Read the file and copy the text exactly."
     if n > 1:
         return f"Error: old_text appears {n} times. Include more surrounding lines to make it unique."
-    p.write_text(text.replace(old_text, new_text, 1), encoding="utf-8")
+    _atomic_write_text(p, text.replace(old_text, new_text, 1))
     return f"Edited {p}"
 
 
@@ -88,7 +154,7 @@ def list_dir(path: str = ".", base: Path | None = None) -> str:
     return f"{p}\n" + "\n".join(lines) if lines else f"{p}\n(empty)"
 
 
-_SKIP_DIRS = {".git", "node_modules", "__pycache__", ".venv", "venv", ".idea"}
+_SKIP_DIRS = {".git", ".lmh", "node_modules", "__pycache__", ".venv", "venv", ".idea"}
 
 
 def search(glob: str = "", text: str = "", path: str = ".",
@@ -104,7 +170,9 @@ def search(glob: str = "", text: str = "", path: str = ".",
         for fname in filenames:
             fp = Path(dirpath) / fname
             rel = fp.relative_to(root).as_posix()
-            if glob and not (fnmatch.fnmatch(rel, glob) or fnmatch.fnmatch(fname, glob)):
+            patterns = (glob, glob[3:]) if glob.startswith("**/") else (glob,)
+            if glob and not any(fnmatch.fnmatch(rel, pat) or
+                                fnmatch.fnmatch(fname, pat) for pat in patterns):
                 continue
             if text:
                 try:

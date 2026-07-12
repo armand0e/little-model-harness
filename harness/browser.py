@@ -13,11 +13,13 @@ browser isn't available, callers fall back to the plain httpx path.
 from __future__ import annotations
 
 import base64
+import ipaddress
 import json
 import queue
 import re
+import socket
 import threading
-from pathlib import Path
+import time
 from urllib.parse import parse_qs, quote_plus, unquote, urlsplit, urlunsplit
 
 from .config import BROWSER_PROFILE_DIR
@@ -66,6 +68,24 @@ AD_HOSTS = {
     "rubiconproject.com", "openx.net", "moatads.com", "hotjar.com",
     "mixpanel.com", "segment.com", "popads.net", "propellerads.com",
 }
+_PUBLIC_HOST_CACHE: dict[str, bool] = {}
+
+
+def _host_is_public(host: str) -> bool:
+    host = host.rstrip(".").lower()
+    if not host or host == "localhost" or host.endswith((".localhost", ".local")):
+        return False
+    if host in _PUBLIC_HOST_CACHE:
+        return _PUBLIC_HOST_CACHE[host]
+    try:
+        addresses = {info[4][0] for info in socket.getaddrinfo(
+            host, None, type=socket.SOCK_STREAM)}
+        allowed = bool(addresses) and all(
+            ipaddress.ip_address(address).is_global for address in addresses)
+    except (socket.gaierror, ValueError):
+        allowed = False
+    _PUBLIC_HOST_CACHE[host] = allowed
+    return allowed
 
 # webdriver flag is the loudest tell; the rest comes from using a real
 # channel browser (real UA + client hints) and AutomationControlled off.
@@ -176,11 +196,15 @@ class _BrowserWorker:
                 ctx = self._launch(pw)
                 self.status = "ready"
                 while True:
-                    fn, out = self._jobs.get()
+                    job = self._jobs.get()
+                    if job is None:
+                        break
+                    fn, out = job
                     try:
                         out.put(("ok", fn(ctx)))
                     except Exception as e:
                         out.put(("err", f"{type(e).__name__}: {e}"))
+                ctx.close()
         except Exception as e:
             self.status = "unavailable"
             self._drain(str(e))
@@ -188,7 +212,10 @@ class _BrowserWorker:
     def _drain(self, msg: str) -> None:
         while True:
             try:
-                _, out = self._jobs.get_nowait()
+                job = self._jobs.get_nowait()
+                if job is None:
+                    continue
+                _, out = job
                 out.put(("err", msg))
             except queue.Empty:
                 return
@@ -223,7 +250,10 @@ class _BrowserWorker:
         ctx.set_default_timeout(NAV_TIMEOUT)
 
         def block_ads(route):
-            host = urlsplit(route.request.url).hostname or ""
+            parsed = urlsplit(route.request.url)
+            host = parsed.hostname or ""
+            if parsed.scheme in {"http", "https"} and not _host_is_public(host):
+                return route.abort()
             parts = host.lower().split(".")
             for i in range(len(parts) - 1):
                 if ".".join(parts[i:]) in AD_HOSTS:
@@ -239,16 +269,43 @@ class _BrowserWorker:
         self._ensure_thread()
         out: queue.Queue = queue.Queue()
         self._jobs.put((fn, out))
-        try:
-            kind, val = out.get(timeout=timeout)
-        except queue.Empty:
-            raise TimeoutError("browser job timed out")
+        deadline = time.monotonic() + timeout
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError("browser job timed out")
+            try:
+                kind, val = out.get(timeout=min(0.25, remaining))
+                break
+            except queue.Empty:
+                if self.status == "unavailable" and (
+                        self._thread is None or not self._thread.is_alive()):
+                    raise RuntimeError("browser support is unavailable")
         if kind == "err":
             raise RuntimeError(val)
         return val
 
+    def close(self, timeout: float = 5.0) -> None:
+        """Shut down Playwright and its browser process, if one was started."""
+        with self._lock:
+            thread = self._thread
+            if thread is None or not thread.is_alive():
+                self._thread = None
+                self.status = "cold"
+                return
+            self._jobs.put(None)
+        thread.join(timeout=timeout)
+        with self._lock:
+            if not thread.is_alive() and self._thread is thread:
+                self._thread = None
+                self.status = "cold"
+
 
 _worker = _BrowserWorker()
+
+
+def close() -> None:
+    _worker.close()
 
 
 def available() -> bool:
@@ -325,8 +382,8 @@ def _fetch_reddit(page, url: str) -> str:
 
 def _format_reddit(data) -> str:
     lines: list[str] = []
-    if isinstance(data, list) and data and \
-            data[0].get("data", {}).get("children"):
+    if (isinstance(data, list) and data and isinstance(data[0], dict)
+            and data[0].get("data", {}).get("children")):
         post = data[0]["data"]["children"][0]["data"]
         lines.append(f"# {post.get('title', '')}")
         lines.append(f"r/{post.get('subreddit')} - u/{post.get('author')} - "
@@ -355,7 +412,8 @@ def _format_reddit(data) -> str:
                          + " ".join(body.split()))
         return "\n".join(lines)
     # listing
-    children = (data or {}).get("data", {}).get("children", [])
+    children = (data.get("data", {}).get("children", [])
+                if isinstance(data, dict) else [])
     posts = [c["data"] for c in children if c.get("kind") == "t3"]
     lines.append(f"Reddit listing - {len(posts)} posts")
     for p in posts[:25]:

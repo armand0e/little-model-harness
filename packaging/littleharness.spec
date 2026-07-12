@@ -10,16 +10,24 @@ Data (sessions, settings, memory, learned skills, browser profile) lives in
 the per-user appdata dir, so the install folder can stay read-only.
 """
 import os
+import re
 import sys
 
 from PyInstaller.utils.hooks import collect_all, collect_submodules
 
 ROOT = os.path.abspath(os.path.join(SPECPATH, ".."))
+APP_VERSION = os.environ.get("LMH_VERSION", "0.0.0")
+if not re.fullmatch(r"\d+\.\d+\.\d+", APP_VERSION):
+    raise SystemExit(f"LMH_VERSION must use X.Y.Z format (got {APP_VERSION!r})")
 
 datas = [
     (os.path.join(ROOT, "web"), "web"),
     (os.path.join(ROOT, "skills"), "skills"),
 ]
+computer_use_dir = os.path.join(ROOT, "build", "computer-use")
+if os.path.isdir(computer_use_dir):
+    # Pinned native accessibility MCP + upstream MIT license/source manifest.
+    datas.append((computer_use_dir, "computer-use"))
 binaries = []
 hiddenimports = ["multipart"]  # python-multipart (fastapi uploads)
 
@@ -34,7 +42,7 @@ ICON = (os.path.join(SPECPATH, "littleharness.ico") if is_windows
 # scripts (run via `--runpy`), so static analysis of run_app.py never
 # sees them — bundle them explicitly.
 collect_pkgs = ["webview", "docx", "openpyxl", "pptx", "pypdf", "fitz",
-                "PIL", "pyautogui", "pygetwindow", "playwright"]
+                "PIL", "pyautogui", "pygetwindow", "playwright", "mcp"]
 if is_macos:
     # pyobjc frameworks the computer skill's permission preflight and
     # pyautogui need at runtime
@@ -111,7 +119,8 @@ if is_macos:
         info_plist={
             "CFBundleName": "Little Harness",
             "CFBundleDisplayName": "Little Harness",
-            "CFBundleShortVersionString": "1.0.0",
+            "CFBundleShortVersionString": APP_VERSION,
+            "CFBundleVersion": APP_VERSION,
             "NSHighResolutionCapable": True,
             "LSMinimumSystemVersion": "12.0",
             # the app talks to the local model server over http

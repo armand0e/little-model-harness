@@ -2,7 +2,6 @@
 import sys
 
 from docx import Document
-from docx.document import Document as DocBody
 from docx.table import Table
 from docx.text.paragraph import Paragraph
 
@@ -26,7 +25,7 @@ def main(path):
             text = block.text.strip()
             if not text:
                 continue
-            style = (block.style.name or "").lower()
+            style = (block.style.name if block.style is not None else "").lower()
             if style.startswith("heading"):
                 level = "".join(c for c in style if c.isdigit()) or "1"
                 out.append("#" * int(level) + " " + text)

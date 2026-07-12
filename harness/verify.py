@@ -1,8 +1,8 @@
 """Write-time verification: give the model feedback from reality the moment
 it saves a file, at zero extra steps.
 
-- .html  -> load in headless Chrome/Edge, capture console errors, uncaught
-            exceptions, unhandled rejections, and failed resource loads
+- .html  -> render at desktop + mobile sizes, capture screenshots, layout
+            diagnostics, console errors, and failed resource loads
 - .py    -> syntax check (py_compile)
 - .js    -> node --check
 
@@ -16,31 +16,21 @@ import os
 import re
 import shutil
 import subprocess
+import sys
+from pathlib import Path
+from urllib.parse import urlsplit
 
 # windowed app: console children must not pop terminal windows
 CREATE_NO_WINDOW = 0x08000000 if sys.platform == 'win32' else 0
-import sys
-import tempfile
-from pathlib import Path
 
 MAX_CHECK_BYTES = 2_000_000
-MAX_REPORT = 900  # chars of check output appended to a tool result
-
-# single line on purpose: keeps the page's own line numbers accurate
-CAPTURE_SCRIPT = (
-    '<script>(function(){var E=[];function add(k,m){E.push(k+": "+String(m)'
-    '.slice(0,300));var el=document.getElementById("__lmh_errlog");if(!el){'
-    'el=document.createElement("template");el.id="__lmh_errlog";'
-    'document.documentElement.appendChild(el);}el.setAttribute("data-errors",'
-    'JSON.stringify(E.slice(0,20)));}window.addEventListener("error",'
-    'function(e){if(e.target&&(e.target.src||e.target.href)){add('
-    '"failed-to-load",e.target.tagName+" "+(e.target.src||e.target.href));}'
-    'else{add("uncaught-error",e.message+" (line "+(e.lineno||"?")+")");}},'
-    'true);window.addEventListener("unhandledrejection",function(e){add('
-    '"unhandled-rejection",e.reason);});var ce=console.error;console.error='
-    'function(){add("console.error",Array.prototype.slice.call(arguments)'
-    '.join(" "));if(ce)ce.apply(console,arguments);};})();</script>')
-
+MAX_REPORT = 6000
+VISUAL_MARKER = "__VISUAL_QA__:"
+VIEWPORTS = {
+    "desktop": (1440, 1000),
+    "tablet": (900, 1100),
+    "mobile": (390, 844),
+}
 
 def _find_browser() -> str | None:
     for name in ("chrome", "msedge", "chromium"):
@@ -64,55 +54,170 @@ def _find_browser() -> str | None:
     return None
 
 
-def check_html(path: Path) -> str | None:
-    """Render the page headlessly (over file://, like double-clicking it)
-    and report what the browser console would show."""
-    browser = _find_browser()
-    if not browser or path.stat().st_size > MAX_CHECK_BYTES:
-        return None
+def _viewport_names(spec: str) -> list[str]:
+    names = [name.strip().lower() for name in spec.split(",") if name.strip()]
+    valid = [name for name in names if name in VIEWPORTS]
+    return list(dict.fromkeys(valid))[:3] or ["desktop", "mobile"]
+
+
+def _qa_output_dir(root: Path) -> Path:
+    output = root.resolve() / ".lmh" / "visual-qa"
+    output.mkdir(parents=True, exist_ok=True)
+    return output
+
+
+def _cleanup_visual_qa(output: Path) -> None:
     try:
-        html = path.read_text(encoding="utf-8", errors="replace")
+        shots = sorted(output.glob("*.png"), key=lambda p: p.stat().st_mtime,
+                       reverse=True)
+        for stale in shots[60:]:
+            stale.unlink(missing_ok=True)
     except OSError:
-        return None
-    # inject the capture script as early as possible
-    m = re.search(r"<head[^>]*>", html, re.I)
-    if m:
-        wrapped = html[:m.end()] + CAPTURE_SCRIPT + html[m.end():]
+        pass
+
+
+def visual_check(target: str | Path, output_root: Path,
+                 viewports: str = "desktop,mobile",
+                 click_selector: str = "", scroll_selector: str = "",
+                 state_label: str = "default", wait_ms: int = 700,
+                 full_page: bool = False) -> str:
+    """Render a local HTML file or loopback URL and return screenshots + QA."""
+    browser_path = _find_browser()
+    if not browser_path:
+        return ("Visual QA unavailable: no Chrome, Edge, or Chromium executable "
+                "was found. Do not claim the UI was visually verified.")
+    raw_target = str(target)
+    parsed = urlsplit(raw_target)
+    target_name = "page"
+    if parsed.scheme in {"http", "https"}:
+        if parsed.hostname not in {"localhost", "127.0.0.1", "::1"}:
+            return "Error: visual_check only opens local files or loopback URLs."
+        url = raw_target
+        target_name = (parsed.path.rsplit("/", 1)[-1] or "page")
     else:
-        wrapped = CAPTURE_SCRIPT + html
-    # same directory so relative src/href resolve identically
-    tmp = (path.parent / f".__lmh_check__{path.name}").resolve()
+        path = Path(target).expanduser().resolve()
+        if not path.is_file():
+            return f"Error: visual target not found: {path}"
+        if path.suffix.lower() not in {".html", ".htm"}:
+            return "Error: visual_check currently supports HTML files and loopback URLs."
+        if path.stat().st_size > MAX_CHECK_BYTES:
+            return "Visual QA skipped: HTML is over the 2 MB direct-render limit."
+        url, target_name = path.as_uri(), path.name
+
+    safe_target = re.sub(r"[^a-zA-Z0-9_-]+", "-", Path(target_name).stem)[:40] or "page"
+    safe_state = re.sub(r"[^a-zA-Z0-9_-]+", "-", state_label)[:30] or "default"
+    output = _qa_output_dir(output_root)
+    selected = _viewport_names(viewports)
+    wait_ms = max(0, min(int(wait_ms), 10_000))
+    screenshots: list[dict] = []
+    reports: list[str] = []
+    all_errors: list[str] = []
+
     try:
-        tmp.write_text(wrapped, encoding="utf-8")
-        r = subprocess.run(
-            [browser, "--headless=new", "--disable-gpu", "--no-first-run",
-             "--virtual-time-budget=4000", "--timeout=9000",
-             "--dump-dom", tmp.as_uri()],
-            capture_output=True, text=True, timeout=25,
-            encoding="utf-8", errors="replace",
-            creationflags=CREATE_NO_WINDOW)
-        dom = r.stdout or ""
-    except (subprocess.TimeoutExpired, OSError):
-        return None
-    finally:
-        tmp.unlink(missing_ok=True)
-    m = re.search(r'id="__lmh_errlog"[^>]*data-errors="([^"]*)"', dom)
-    if not m:
-        # capture element only exists once an error happened
-        return "Page check (headless browser): no console errors."
-    try:
-        errors = json.loads(m.group(1).replace("&quot;", '"')
-                            .replace("&amp;", "&").replace("&lt;", "<")
-                            .replace("&gt;", ">"))
-    except json.JSONDecodeError:
-        return None
-    if not errors:
-        return "Page check (headless browser): no console errors."
-    listing = "\n".join(f"  - {e}" for e in errors[:8])
-    note = ("\n  (checked over file:// — the same way a user double-clicks "
-            "the file)") if "failed-to-load" in " ".join(errors) else ""
-    return (f"Page check (headless browser) found {len(errors)} console "
-            f"error(s) — fix them:\n{listing}{note}")
+        from playwright.sync_api import sync_playwright
+        with sync_playwright() as pw:
+            browser = pw.chromium.launch(
+                headless=True, executable_path=browser_path,
+                args=["--disable-gpu"])
+            try:
+                for name in selected:
+                    width, height = VIEWPORTS[name]
+                    context = browser.new_context(
+                        viewport={"width": width, "height": height},
+                        device_scale_factor=1)
+                    page = context.new_page()
+                    errors: list[str] = []
+
+                    def on_console(msg):
+                        if msg.type == "error":
+                            errors.append(f"console.{msg.type}: {msg.text}")
+
+                    def on_page_error(exc):
+                        errors.append(f"uncaught: {exc}")
+
+                    def on_request_failed(request):
+                        errors.append(
+                            f"failed-to-load: {request.url} ({request.failure})")
+
+                    page.on("console", on_console)
+                    page.on("pageerror", on_page_error)
+                    page.on("requestfailed", on_request_failed)
+                    try:
+                        page.goto(url, wait_until="load", timeout=15_000)
+                        page.evaluate(
+                            "() => document.fonts ? document.fonts.ready : Promise.resolve()")
+                        if click_selector:
+                            page.locator(click_selector).first.click(timeout=5000)
+                        if scroll_selector:
+                            page.locator(scroll_selector).first.scroll_into_view_if_needed(
+                                timeout=5000)
+                        page.wait_for_timeout(wait_ms)
+                        diag = page.evaluate("""() => {
+                          const root = document.documentElement;
+                          const body = document.body;
+                          const broken = [...document.images].filter(
+                            img => img.complete && img.naturalWidth === 0).length;
+                          const overflow = Math.max(root.scrollWidth, body?.scrollWidth || 0)
+                            - root.clientWidth;
+                          const visibleText = (body?.innerText || '').trim().length;
+                          return {title: document.title || '(untitled)',
+                            pageWidth: Math.max(root.scrollWidth, body?.scrollWidth || 0),
+                            pageHeight: Math.max(root.scrollHeight, body?.scrollHeight || 0),
+                            overflow: Math.max(0, overflow), brokenImages: broken,
+                            visibleText, images: document.images.length};
+                        }""")
+                        shot_path = output / f"{safe_target}-{safe_state}-{name}.png"
+                        page.screenshot(path=str(shot_path), full_page=bool(full_page),
+                                        animations="disabled")
+                        screenshots.append({"path": str(shot_path), "label": name})
+                        issue_bits = []
+                        if diag["overflow"]:
+                            issue_bits.append(f"HORIZONTAL OVERFLOW {diag['overflow']}px")
+                        if diag["brokenImages"]:
+                            issue_bits.append(f"BROKEN IMAGES {diag['brokenImages']}")
+                        if diag["visibleText"] == 0:
+                            issue_bits.append("NO VISIBLE TEXT")
+                        suffix = "; " + ", ".join(issue_bits) if issue_bits else ""
+                        reports.append(
+                            f"- {name} {width}x{height}: document "
+                            f"{diag['pageWidth']}x{diag['pageHeight']}, "
+                            f"{diag['images']} image(s){suffix}")
+                    except Exception as exc:
+                        errors.append(f"render failed: {type(exc).__name__}: {exc}")
+                        reports.append(f"- {name} {width}x{height}: RENDER FAILED")
+                    finally:
+                        all_errors.extend(f"{name}: {error}" for error in errors[:12])
+                        context.close()
+            finally:
+                browser.close()
+    except Exception as exc:
+        return (f"Visual QA unavailable: {type(exc).__name__}: {exc}. "
+                "Do not claim the UI was visually verified.")
+
+    lines = [f"Visual QA rendered {target_name} in {len(screenshots)}/{len(selected)} "
+             "requested viewport(s).", *reports]
+    if all_errors:
+        lines.append(f"Runtime/resource errors ({len(all_errors)}):")
+        lines.extend(f"  - {error}" for error in all_errors[:12])
+    else:
+        lines.append("Runtime/resource check: no errors observed.")
+    for shot_info in screenshots:
+        lines.append(
+            f"Visual screenshot [{shot_info['label']}]: {shot_info['path']}")
+    if screenshots:
+        lines.append(
+            "Inspect every attached screenshot for hierarchy, spacing, clipping, "
+            "contrast, responsiveness, and visual polish. Fix issues and run "
+            "visual_check again; a clean console alone is not visual verification.")
+    _cleanup_visual_qa(output)
+    return VISUAL_MARKER + json.dumps(
+        {"report": "\n".join(lines), "screenshots": screenshots},
+        ensure_ascii=False)
+
+
+def check_html(path: Path, visual_root: Path | None = None) -> str:
+    return visual_check(path, visual_root or path.parent,
+                        viewports="desktop,mobile", state_label="auto")
 
 
 def check_python(path: Path) -> str | None:
@@ -156,12 +261,13 @@ def check_js(path: Path) -> str | None:
     return f"Syntax check (node) FAILED:\n{err}" if err else None
 
 
-def check_written_file(path: Path) -> str | None:
+def check_written_file(path: Path, visual_root: Path | None = None) -> str | None:
     """Dispatch by extension; returns a short report or None."""
     ext = path.suffix.lower()
+    report: str | None
     try:
         if ext in (".html", ".htm"):
-            report = check_html(path)
+            report = check_html(path, visual_root)
         elif ext == ".py":
             report = check_python(path)
         elif ext in (".js", ".mjs"):
@@ -170,6 +276,6 @@ def check_written_file(path: Path) -> str | None:
             return None
     except Exception:
         return None
-    if report and len(report) > MAX_REPORT:
+    if report and not report.startswith(VISUAL_MARKER) and len(report) > MAX_REPORT:
         report = report[:MAX_REPORT] + "…"
     return report

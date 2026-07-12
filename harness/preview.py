@@ -8,6 +8,7 @@ from __future__ import annotations
 import html
 import json
 import re
+import zipfile
 from pathlib import Path
 
 BASE_CSS = """
@@ -38,6 +39,40 @@ hr { border: none; border-top: 1px solid #d8d5cc; margin: 18px 0; }
   letter-spacing: .8px; margin: 22px 0 6px; }
 .meta { color:#a5a297; font-size: 12px; margin-bottom: 18px; }
 """
+
+OFFICE_EXTS = {".docx", ".xlsx", ".pptx"}
+MAX_ARCHIVE_MEMBERS = 10_000
+MAX_ARCHIVE_MEMBER_BYTES = 50 * 1024 * 1024
+MAX_ARCHIVE_EXPANDED_BYTES = 100 * 1024 * 1024
+MAX_ARCHIVE_RATIO = 200
+
+
+def validate_office_archive(path: Path) -> None:
+    """Reject malformed or implausibly expansive Office ZIP containers.
+
+    The XML parsers used by python-docx/openpyxl/python-pptx are convenient,
+    but they should never be the first component to inspect an uploaded ZIP.
+    """
+    if path.suffix.lower() not in OFFICE_EXTS:
+        return
+    try:
+        with zipfile.ZipFile(path) as archive:
+            members = archive.infolist()
+            if len(members) > MAX_ARCHIVE_MEMBERS:
+                raise ValueError("Office file contains too many archive entries")
+            expanded = sum(member.file_size for member in members)
+            compressed = sum(member.compress_size for member in members)
+            if any(member.file_size > MAX_ARCHIVE_MEMBER_BYTES for member in members):
+                raise ValueError("Office file contains an oversized archive entry")
+            if expanded > MAX_ARCHIVE_EXPANDED_BYTES:
+                raise ValueError("Office file expands beyond the safe preview limit")
+            if expanded > 10 * 1024 * 1024 and expanded > max(compressed, 1) * MAX_ARCHIVE_RATIO:
+                raise ValueError("Office file has an unsafe compression ratio")
+            bad = archive.testzip()
+            if bad is not None:
+                raise ValueError(f"Office file contains a corrupt archive entry: {bad}")
+    except (OSError, zipfile.BadZipFile) as exc:
+        raise ValueError("Office file is not a valid ZIP container") from exc
 
 
 def _page(title: str, body: str) -> str:
@@ -96,7 +131,8 @@ def md_to_html(src: str) -> str:
             continue
         if re.match(r"^\|.*\|", line) and i + 1 < len(lines) \
                 and re.match(r"^\|[\s:|-]+\|", lines[i + 1]):
-            cells = lambda r: [c.strip() for c in r.strip().strip("|").split("|")]
+            def cells(row: str) -> list[str]:
+                return [c.strip() for c in row.strip().strip("|").split("|")]
             rows_html = "<tr>" + "".join(
                 f"<th>{_md_inline(c)}</th>" for c in cells(line)) + "</tr>"
             i += 2
@@ -141,7 +177,7 @@ def _docx_html(path: Path) -> str:
             text = _esc(p.text.strip())
             if not text:
                 continue
-            style = (p.style.name or "").lower()
+            style = (p.style.name if p.style is not None else "").lower()
             if style.startswith("heading"):
                 n = min(int("".join(c for c in style if c.isdigit()) or 1), 4)
                 parts.append(f"<h{n}>{text}</h{n}>")
@@ -164,7 +200,7 @@ def _docx_html(path: Path) -> str:
 
 
 def _xlsx_html(path: Path) -> str:
-    from openpyxl import load_workbook
+    from openpyxl import load_workbook  # type: ignore[import-untyped]
     parts = []
     # values pass (computed where cached) + formulas pass for tooltips
     wb_val = load_workbook(str(path), data_only=True)

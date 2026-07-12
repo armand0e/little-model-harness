@@ -1,78 +1,223 @@
-name: Build installers
+name: Build desktop releases
 
-# Run manually from the Actions tab, or push a tag like v1.0.0 to also
-# attach the installers to a GitHub release.
+# Every main-branch revision gets downloadable native packages. A vX.Y.Z tag
+# builds the same artifacts and publishes them as a GitHub release.
 on:
   workflow_dispatch:
   push:
-    tags: ["v*"]
+    branches: [main]
+    tags: ["v[0-9]+.[0-9]+.[0-9]+"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-build-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref_type != 'tag' }}
 
 jobs:
-  windows:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - name: Install Inno Setup
-        run: choco install innosetup -y --no-progress
-      - name: Build app + installer
-        run: powershell -File packaging\build_windows.ps1
-      - uses: actions/upload-artifact@v4
-        with:
-          name: LittleHarness-Setup
-          path: dist/LittleHarness-Setup.exe
-
-  linux:
-    # oldest supported runner = oldest glibc the AppImage requires
+  test:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
+          cache: pip
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pytest ruff mypy playwright
+      - name: Verify source
+        run: |
+          ruff check .
+          mypy harness --ignore-missing-imports --check-untyped-defs --no-error-summary
+          python -m compileall -q .
+          node -e "const fs=require('fs'),s=fs.readFileSync('web/index.html','utf8'),a=s.indexOf('<script>')+8,b=s.lastIndexOf('</script>');if(a<8||b<a)throw Error('main script not found');new Function(s.slice(a,b));"
+          python -m pytest -q
+
+  windows:
+    name: Windows x64 installer
+    needs: test
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          architecture: x64
+          cache: pip
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.24.x"
+          cache: false
+      - name: Install Inno Setup
+        run: choco install innosetup -y --no-progress
+      - name: Build app and installer
+        shell: pwsh
+        run: ./packaging/build_windows.ps1
+      - name: Smoke-test packaged server
+        shell: pwsh
+        run: |
+          $env:LMH_DATA_DIR = Join-Path $env:RUNNER_TEMP "LittleHarness-smoke"
+          $process = Start-Process `
+            -FilePath "dist\LittleHarness\LittleHarnessCLI.exe" `
+            -ArgumentList "--server-only" -PassThru -NoNewWindow
+          try {
+            $status = $null
+            foreach ($attempt in 1..120) {
+              try {
+                $status = Invoke-RestMethod "http://127.0.0.1:8321/api/status" `
+                  -TimeoutSec 1
+                break
+              } catch {
+                if ($process.HasExited) {
+                  throw "Packaged server exited with code $($process.ExitCode)"
+                }
+                Start-Sleep -Milliseconds 250
+              }
+            }
+            if ($null -eq $status -or $null -eq $status.workspace) {
+              throw "Packaged server did not become healthy"
+            }
+          } finally {
+            if (-not $process.HasExited) {
+              Stop-Process -Id $process.Id -Force
+            }
+          }
+          $installer = Get-Item "dist\LittleHarness-Setup.exe"
+          if ($installer.Length -lt 1MB) { throw "Installer is unexpectedly small" }
+          Get-FileHash $installer.FullName -Algorithm SHA256
+      - uses: actions/upload-artifact@v7
+        with:
+          name: LittleHarness-Windows-x64
+          path: dist/LittleHarness-Setup.exe
+          if-no-files-found: error
+          retention-days: 14
+
+  linux:
+    name: Linux x86_64 AppImage
+    needs: test
+    # The explicit image fixes the oldest glibc the AppImage requires.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          architecture: x64
+          cache: pip
       - name: Build AppImage
         run: bash packaging/build_appimage.sh
-      - uses: actions/upload-artifact@v4
+      - name: Smoke-test AppImage
+        run: |
+          set -euo pipefail
+          test "$(uname -m)" = x86_64
+          test -x dist/LittleHarness-x86_64.AppImage
+          dist/LittleHarness-x86_64.AppImage --appimage-version
+          export LMH_DATA_DIR="$RUNNER_TEMP/LittleHarness-smoke"
+          dist/LittleHarness-x86_64.AppImage --appimage-extract-and-run \
+            --server-only >"$RUNNER_TEMP/lmh-appimage.log" 2>&1 &
+          pid=$!
+          trap 'kill "$pid" 2>/dev/null || true' EXIT
+          ready=""
+          for attempt in $(seq 1 120); do
+            if curl --fail --silent http://127.0.0.1:8321/api/status \
+              >"$RUNNER_TEMP/lmh-status.json"; then
+              ready=1
+              break
+            fi
+            kill -0 "$pid" 2>/dev/null || {
+              cat "$RUNNER_TEMP/lmh-appimage.log"
+              exit 1
+            }
+            sleep 0.25
+          done
+          test -n "$ready" || {
+            cat "$RUNNER_TEMP/lmh-appimage.log"
+            exit 1
+          }
+          python -c 'import json, os; d=json.load(open(os.environ["RUNNER_TEMP"] + "/lmh-status.json")); assert d.get("workspace")'
+          sha256sum dist/LittleHarness-x86_64.AppImage
+      - uses: actions/upload-artifact@v7
         with:
-          name: LittleHarness-AppImage
+          name: LittleHarness-Linux-x86_64
           path: dist/LittleHarness-x86_64.AppImage
+          if-no-files-found: error
+          retention-days: 14
 
   macos:
+    name: macOS ${{ matrix.arch }} DMG
+    needs: test
     strategy:
+      fail-fast: false
       matrix:
         include:
-          - runner: macos-latest   # Apple Silicon
+          # macos-15 is an Apple Silicon runner. Pinning the label prevents a
+          # future macos-latest migration from silently changing the target.
+          - runner: macos-15
+            python_arch: arm64
             arch: arm64
-          - runner: macos-13       # Intel
+          - runner: macos-15-intel
+            python_arch: x64
             arch: x86_64
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-      - name: Build .app + DMG
+          architecture: ${{ matrix.python_arch }}
+          cache: pip
+      - name: Confirm native build architecture
+        run: |
+          test "$(uname -m)" = "${{ matrix.arch }}"
+          python -c 'import platform; assert platform.machine() == "${{ matrix.arch }}", platform.machine()'
+      - name: Build app and DMG
         run: bash packaging/build_macos.sh
-      - name: Arch-tag the DMG
-        run: mv dist/LittleHarness.dmg dist/LittleHarness-${{ matrix.arch }}.dmg
-      - uses: actions/upload-artifact@v4
+      - name: Verify signed native package
+        run: |
+          set -euo pipefail
+          app="dist/Little Harness.app"
+          codesign --verify --deep --strict --verbose=2 "$app"
+          test "$(lipo -archs "$app/Contents/MacOS/LittleHarness")" = "${{ matrix.arch }}"
+          hdiutil verify dist/LittleHarness.dmg
+          mv dist/LittleHarness.dmg "dist/LittleHarness-macOS-${{ matrix.arch }}.dmg"
+          shasum -a 256 "dist/LittleHarness-macOS-${{ matrix.arch }}.dmg"
+      - uses: actions/upload-artifact@v7
         with:
-          name: LittleHarness-DMG-${{ matrix.arch }}
-          path: dist/LittleHarness-${{ matrix.arch }}.dmg
+          name: LittleHarness-macOS-${{ matrix.arch }}
+          path: dist/LittleHarness-macOS-${{ matrix.arch }}.dmg
+          if-no-files-found: error
+          retention-days: 14
 
   release:
+    name: Publish GitHub release
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [windows, linux, macos]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           merge-multiple: true
           path: dist
-      - uses: softprops/action-gh-release@v2
-        with:
-          files: dist/*
+      - name: Generate checksums
+        run: |
+          cd dist
+          sha256sum LittleHarness-* > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+      - name: Publish release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" dist/* --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" dist/* \
+              --verify-tag --generate-notes --title "$GITHUB_REF_NAME"
+          fi

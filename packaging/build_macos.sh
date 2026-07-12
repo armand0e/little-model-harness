@@ -5,6 +5,18 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+PACKAGE_VERSION="${LMH_VERSION:-}"
+if [[ -z "$PACKAGE_VERSION" && "${GITHUB_REF_TYPE:-}" == "tag" ]]; then
+    PACKAGE_VERSION="${GITHUB_REF_NAME#v}"
+fi
+PACKAGE_VERSION="${PACKAGE_VERSION:-0.0.0}"
+if [[ ! "$PACKAGE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "error: LMH_VERSION must use X.Y.Z format (got '$PACKAGE_VERSION')" >&2
+    exit 1
+fi
+export LMH_VERSION="$PACKAGE_VERSION"
+echo "Building Little Harness $PACKAGE_VERSION for $(uname -m) macOS"
+
 # the harness needs Python >= 3.11; Apple's stock /usr/bin/python3 is older,
 # so prefer a Homebrew/python.org install if present
 PY=""
@@ -30,11 +42,13 @@ pip install --quiet --upgrade pip
 pip install --quiet -r requirements.txt pyinstaller playwright \
     pyobjc-framework-Quartz pyobjc-framework-ApplicationServices
 
+python packaging/fetch_computer_use.py --output build/computer-use
 python -m PyInstaller packaging/littleharness.spec --noconfirm
+find "dist/Little Harness.app" -type f -name open-computer-use -exec chmod +x {} +
 
 # ad-hoc sign so the app runs on Apple Silicon (unsigned binaries are
 # killed outright on arm64); users still right-click > Open the first time
-codesign --force --deep --sign - "dist/Little Harness.app" || true
+codesign --force --deep --sign - "dist/Little Harness.app"
 
 # drag-to-Applications DMG
 STAGE=build/dmg-stage
@@ -47,5 +61,5 @@ hdiutil create -volname "Little Harness" -srcfolder "$STAGE" -ov \
 
 echo
 echo "Built dist/LittleHarness.dmg"
-echo "First launch on a Mac: right-click the app > Open (it is unsigned)."
+echo "First launch on a Mac: right-click the app > Open (it is not notarized)."
 echo "Data lives in ~/Library/Application Support/LittleHarness."

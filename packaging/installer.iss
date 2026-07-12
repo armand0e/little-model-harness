@@ -4,7 +4,9 @@
 ; Build: ISCC.exe packaging\installer.iss   (or packaging\build_windows.ps1)
 
 #define AppName "Little Harness"
-#define AppVersion "1.0.0"
+#ifndef AppVersion
+  #define AppVersion "0.0.0"
+#endif
 #define AppExe "LittleHarness.exe"
 
 [Setup]
@@ -24,6 +26,9 @@ Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
 ArchitecturesInstallIn64BitMode=x64compatible
+CloseApplications=yes
+RestartApplications=no
+CloseApplicationsFilter=LittleHarness.exe,LittleHarnessCLI.exe
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"

@@ -17,6 +17,7 @@ import sys
 import threading
 import time
 import webbrowser
+from typing import Any
 
 APP_NAME = "Little Harness"
 
@@ -74,22 +75,58 @@ def _wait_ready(port: int, timeout: float = 30.0) -> bool:
     return False
 
 
-def _start_server(port: int) -> threading.Thread:
+def _start_server(port: int) -> tuple[Any, threading.Thread]:
     """Run uvicorn in a daemon thread (it skips signal handlers off the
     main thread, so the window keeps the main thread)."""
     import uvicorn
 
-    from .server import app  # imports config → migrates data into appdata
+    from .server import app, start_background_services
+
+    start_background_services()
 
     config = uvicorn.Config(app, host="127.0.0.1", port=port,
                             log_level="warning")
     server = uvicorn.Server(config)
     t = threading.Thread(target=server.run, daemon=True)
     t.start()
-    return t
+    return server, t
+
+
+def _stop_server(server: Any, server_thread: threading.Thread) -> None:
+    """Stop active generations and give persistence a chance to finish."""
+    from . import browser
+    from .mcp_client import MCP_HUB
+    from .server import (MODEL_LOCK, SESSIONS, SESSIONS_LOCK,
+                         begin_shutdown)
+
+    begin_shutdown()
+    with SESSIONS_LOCK:
+        sessions = list(SESSIONS.values())
+    for session in sessions:
+        if session._job:
+            session._job.cancel()
+        elif session._agent:
+            session._agent.request_stop()
+    deadline = time.monotonic() + 5.0
+    while MODEL_LOCK.locked() and time.monotonic() < deadline:
+        time.sleep(0.05)
+    browser.close()
+    MCP_HUB.close()
+    server.should_exit = True
+    server_thread.join(timeout=5.0)
 
 
 def main() -> None:
+    # The console-subsystem twin executes helper scripts whose output can
+    # contain any Unicode text.  Windows pipes otherwise default to a legacy
+    # code page (often cp1252), which makes valid documents crash on print.
+    for name in ("stdout", "stderr"):
+        stream = getattr(sys, name)
+        if stream is None:
+            setattr(sys, name, open(os.devnull, "w", encoding="utf-8"))
+        elif hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
+
     if len(sys.argv) > 1 and sys.argv[1] == "--runpy":
         _runpy_mode()
         return
@@ -97,12 +134,11 @@ def main() -> None:
         _pick_folder_mode()
         return
 
-    # windowed (console=False) build: no console streams exist; give the
-    # logging stack somewhere harmless to write
-    if sys.stdout is None:
-        sys.stdout = open(os.devnull, "w", encoding="utf-8")
-    if sys.stderr is None:
-        sys.stderr = open(os.devnull, "w", encoding="utf-8")
+    from .instance import acquire_instance_lock
+    if not acquire_instance_lock():
+        print(f"{APP_NAME} is already running for this user data directory.",
+              file=sys.stderr, flush=True)
+        return
 
     headless = ("--server-only" in sys.argv[1:]
                 or bool(os.environ.get("LMH_NO_WINDOW"))
@@ -110,28 +146,41 @@ def main() -> None:
 
     port = _free_port()
     url = f"http://127.0.0.1:{port}"
-    server_thread = _start_server(port)
-    _wait_ready(port)
+    server, server_thread = _start_server(port)
+    if not _wait_ready(port):
+        print(f"{APP_NAME} server failed to start on {url}", file=sys.stderr,
+              flush=True)
+        server.should_exit = True
+        server_thread.join(timeout=2.0)
+        return
     print(f"{APP_NAME} running at {url}", flush=True)
 
     if headless:
-        server_thread.join()
+        try:
+            server_thread.join()
+        except KeyboardInterrupt:
+            pass
+        finally:
+            _stop_server(server, server_thread)
         return
 
     # ---- the app window ----
     try:
-        import webview
-        webview.create_window(APP_NAME, url, width=1360, height=880,
-                              min_size=(920, 620), confirm_close=False,
-                              text_select=True, zoomable=True)
-        webview.start()          # blocks until the window is closed
-    except Exception:
-        # no webview backend on this machine — at least show the UI
-        webbrowser.open(url)
-        server_thread.join()
-        return
-    # window closed = quit; the server thread is a daemon
-    os._exit(0)
+        try:
+            import webview
+            webview.create_window(APP_NAME, url, width=1360, height=880,
+                                  min_size=(920, 620), confirm_close=False,
+                                  text_select=True, zoomable=True)
+            webview.start()      # blocks until the window is closed
+        except Exception:
+            # no webview backend on this machine — at least show the UI
+            webbrowser.open(url)
+            server_thread.join()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        # Window/browser closed: stop work, persist, then shut down uvicorn.
+        _stop_server(server, server_thread)
 
 
 if __name__ == "__main__":

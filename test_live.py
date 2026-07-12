@@ -21,8 +21,18 @@ def emit(etype, data):
         print(f"\n[{etype.upper()}] {data}")
 
 
-agent = Agent()
-t0 = time.time()
-final = agent.run_turn(sys.argv[1], on_event=emit)
-print(f"\n\n=== FINAL ({time.time() - t0:.0f}s) ===\n{final}")
-print(f"=== STATUS === {agent.context_status()}")
+def main() -> None:
+    if len(sys.argv) < 2:
+        raise SystemExit('usage: python test_live.py "prompt"')
+    agent = Agent()
+    try:
+        t0 = time.time()
+        final = agent.run_turn(sys.argv[1], on_event=emit)
+        print(f"\n\n=== FINAL ({time.time() - t0:.0f}s) ===\n{final}")
+        print(f"=== STATUS === {agent.context_status()}")
+    finally:
+        agent.llm.close()
+
+
+if __name__ == "__main__":
+    main()

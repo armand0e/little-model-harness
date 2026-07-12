@@ -12,10 +12,44 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .config import BUILTIN_SKILLS_DIR, USER_SKILLS_DIR
+from .persistence import atomic_write_text
 
 
 CATEGORY_ORDER = ["office", "software", "writing", "reasoning", "math",
                   "science", "creative", "other"]
+MAX_SKILL_FILE_BYTES = 25_000
+
+# Local models are inconsistent at voluntarily selecting a skill from a long
+# tool/index list. These conservative routes preload only strongly indicated
+# skills; the model can still call ``skill`` for anything else mid-turn.
+SKILL_ROUTES: dict[str, tuple[str, ...]] = {
+    "documents": (r"\b(docx|word document|microsoft word|pdf)\b",),
+    "spreadsheets": (r"\b(xlsx|xls|spreadsheet|excel|csv|worksheet)\b",),
+    "presentations": (r"\b(pptx|powerpoint|slide deck|presentation)\b",),
+    "computer": (
+        r"\b(keyboard|mouse|desktop app|control (?:an? )?app|click on (?:the )?screen|type into|take (?:a )?screenshot|screen capture)\b",
+        r"\b(open|use|navigate|browse|read|summarize).{0,40}\b(chrome|browser|gmail)\b",
+        r"\b(chrome|browser|gmail).{0,40}\b(open|click|navigate|read|summarize)\b",
+    ),
+    "research": (r"\b(research|sources?|citations?|look up|latest|current (?:news|price|version|information|events))\b",),
+    "threejs-essentials": (r"\b(three\.?js|threejs|webgl|3d scene|3d model)\b",),
+    "blender-modeling": (r"\b(blender|blend file|3d mesh|3d render)\b",),
+    "blender-animation-rigging": (r"\b(blender).{0,30}\b(rig|animate|animation)\b",),
+    "animation-principles": (r"\b(animate|animated|animation|motion|easing|tween)\b",),
+    "javascript-game-dev": (r"\b(canvas game|browser game|javascript game)\b",),
+    "godot-essentials": (r"\b(godot|gdscript)\b",),
+    "game-design-fundamentals": (r"\b(game design|gameplay|game loop|level design)\b",),
+    "ui-ux-design": (r"\b(ui|ux|user interface|frontend|web ?page|website|html|css|layout|responsive|visual design)\b",),
+    "debugging-method": (r"\b(debug|bug|broken|failure|failing|crash|freeze|frozen|hang|stuck|glitch|regression|audit)\b",),
+    "api-and-interface-design": (r"\b(api design|interface design|endpoint|openapi|sdk)\b",),
+    "system-design-basics": (r"\b(system design|architecture|scalability|cache|queue|distributed)\b",),
+    "software-design-taste": (r"\b(refactor|codebase|repository|repo|architecture|maintainability|technical debt|audit)\b",),
+    "coding": (r"\b(code|coding|programming|implement|repository|repo|codebase|html|css|javascript|typescript|python|backend|frontend|app|harness|context engineering)\b",),
+    "clear-writing": (r"\b(rewrite|edit prose|email|memo|report|documentation|readme)\b",),
+    "statistics-interpretation": (r"\b(statistics?|statistical|p-value|confidence interval)\b",),
+    "probabilistic-reasoning": (r"\b(probability|bayes|odds|expected value)\b",),
+    "temporal-reasoning": (r"\b(timezone|time zone|date arithmetic|schedule|duration)\b",),
+}
 
 
 @dataclass
@@ -29,7 +63,12 @@ class Skill:
 
 
 def _parse_skill_md(path: Path) -> Skill | None:
-    text = path.read_text(encoding="utf-8")
+    try:
+        if path.stat().st_size > MAX_SKILL_FILE_BYTES:
+            return None
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError):
+        return None
     m = re.match(r"^---\s*\n(.*?)\n---\s*\n(.*)$", text, re.DOTALL)
     if not m:
         return None
@@ -39,9 +78,11 @@ def _parse_skill_md(path: Path) -> Skill | None:
         if ":" in line:
             k, v = line.split(":", 1)
             fields[k.strip()] = v.strip()
-    name = fields.get("name") or path.parent.name
-    desc = fields.get("description", "")
-    hint = fields.get("hint") or " ".join(desc.split()[:10])
+    name = (fields.get("name") or path.parent.name).strip().lower()
+    if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,59}", name):
+        return None
+    desc = " ".join(fields.get("description", "").split())[:500]
+    hint = " ".join((fields.get("hint") or desc).split()[:10])[:80]
     category = fields.get("category", "other")
     if category not in CATEGORY_ORDER:
         category = "other"
@@ -83,12 +124,63 @@ class SkillsManager:
                          for s in sorted(groups[cat], key=lambda s: s.name))
         return "\n".join(lines)
 
+    def recommend(self, text: str, limit: int = 3) -> list[str]:
+        """Select strongly relevant skills without relying on model tool use.
+
+        Exact skill-name mentions win, followed by curated domain routes in
+        declaration order. Generic coding routes come after specialized ones.
+        """
+        low = " ".join(text.lower().split())
+        if limit <= 0 or not low:
+            return []
+        matches: list[tuple[int, int, int, str]] = []
+        route_order = {name: order for order, name in enumerate(SKILL_ROUTES)}
+        for name in self.skills:
+            aliases = {name, name.replace("-", " ")}
+            if any(re.search(rf"(?<![a-z0-9]){re.escape(alias)}(?![a-z0-9])", low)
+                   for alias in aliases):
+                matches.append((1, 0, route_order.get(name, -1), name))
+        for order, (name, patterns) in enumerate(SKILL_ROUTES.items()):
+            if name not in self.skills:
+                continue
+            count = sum(1 for pattern in patterns if re.search(pattern, low))
+            if count:
+                matches.append((0, count, order, name))
+        matches.sort(key=lambda item: (-item[0], -item[1], item[2]))
+        chosen = []
+        for _, _, _, name in matches:
+            if name not in chosen:
+                chosen.append(name)
+            if len(chosen) >= max(0, limit):
+                break
+        return chosen
+
+    def activate(self, name: str) -> bool:
+        name = name.strip().lower()
+        if name not in self.skills:
+            return False
+        self.loaded.add(name)
+        return True
+
+    def active_text(self) -> str:
+        blocks = []
+        for name in sorted(self.loaded):
+            skill = self.skills.get(name)
+            if skill:
+                blocks.append(
+                    f"[active skill: {name}]\n"
+                    + skill.body.replace("{dir}", str(skill.dir)))
+        return "\n\n".join(blocks)
+
     def load(self, name: str) -> str:
         name = name.strip().lower()
         skill = self.skills.get(name)
         if not skill:
             names = ", ".join(self.skills)
             return f"Error: no skill named '{name}'. Available: {names}"
+        if name in self.loaded:
+            return (f"[skill: {name}] is already active for this turn; its "
+                    "instructions are in the system prompt.")
         self.loaded.add(name)
         # {dir} lets skill bodies reference their own helper scripts portably.
         return (f"[skill: {name}]\n"
@@ -99,14 +191,16 @@ class SkillsManager:
 
 
 def save_skill(name: str, hint: str, content: str,
-               category: str = "other", append: bool = False) -> str:
+               category: str | None = None, append: bool = False) -> str:
     """The learning loop: the agent persists what it learned as a skill."""
     name = re.sub(r"[^a-z0-9-]", "-", name.strip().lower()).strip("-")
     if not name or len(name) > 60:
         return "Error: give a short kebab-case skill name."
-    if category not in CATEGORY_ORDER:
+    if category is not None and category not in CATEGORY_ORDER:
         category = "other"
-    hint = " ".join(hint.split())[:80]
+    hint = " ".join(hint.split()[:10])[:80]
+    if not hint:
+        return "Error: give a short hint for the skills index."
     content = content.strip()
     if not content:
         return "Error: content is empty."
@@ -124,14 +218,21 @@ def save_skill(name: str, hint: str, content: str,
         else:
             body = content
             desc = existing.description if existing else hint
+            if existing and category is None:
+                category = existing.category
     else:
         body, desc = content, hint
+    category = category or "other"
     if len(body) > 8000:
         return ("Error: skill body would exceed 8000 chars — trim it or "
                 "split into two skills.")
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        f"---\nname: {name}\ndescription: {desc}\ncategory: {category}\n"
-        f"hint: {hint}\n---\n{body}\n", encoding="utf-8")
-    verb = "Extended" if append and path.exists() else "Saved"
+    try:
+        atomic_write_text(
+            path,
+            f"---\nname: {name}\ndescription: {desc}\ncategory: {category}\n"
+            f"hint: {hint}\n---\n{body}\n",
+        )
+    except OSError as e:
+        return f"Error: could not save skill: {e}"
+    verb = "Extended" if append and src.exists() else "Saved"
     return f"{verb} skill '{name}' — it is now in the skills index for every future session."

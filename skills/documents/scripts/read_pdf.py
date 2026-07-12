@@ -1,5 +1,6 @@
 """Dump PDF text. Usage: python read_pdf.py file.pdf [pages e.g. 1-5]"""
 import sys
+import re
 
 from pypdf import PdfReader
 
@@ -11,11 +12,14 @@ def main(path, pages=None):
     n = len(reader.pages)
     start, end = 1, n
     if pages:
-        if "-" in pages:
-            a, b = pages.split("-", 1)
-            start, end = int(a), min(int(b), n)
-        else:
-            start = end = int(pages)
+        match = re.fullmatch(r"\s*(\d+)(?:\s*-\s*(\d+))?\s*", pages)
+        if not match:
+            sys.exit("Error: page selection must be a number or range like 1-5")
+        start = int(match.group(1))
+        end = int(match.group(2) or start)
+        if start < 1 or end < start or start > n:
+            sys.exit(f"Error: page selection {pages!r} is outside this {n}-page PDF")
+        end = min(end, n)
     out = []
     for i in range(start - 1, end):
         out.append(f"--- page {i + 1} of {n} ---")

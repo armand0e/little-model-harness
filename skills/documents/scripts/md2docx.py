@@ -4,16 +4,22 @@ Usage: python md2docx.py input.md output.docx
 """
 import re
 import sys
+from pathlib import Path
 
 from docx import Document
-from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.shared import Pt, RGBColor
+from docx.shared import Pt
 
 BOLD_RE = re.compile(r"(\*\*.+?\*\*|\*.+?\*|`.+?`)")
+XML_INVALID_RE = re.compile(r"[\x00-\x08\x0B\x0C\x0E-\x1F]")
+
+
+def clean_xml(text):
+    return XML_INVALID_RE.sub("", text)
 
 
 def add_runs(paragraph, text):
     """Render **bold**, *italic* and `code` inline."""
+    text = clean_xml(text)
     for part in BOLD_RE.split(text):
         if not part:
             continue
@@ -43,7 +49,7 @@ def convert(md_path, docx_path):
     style.font.name = "Calibri"
     style.font.size = Pt(11)
 
-    lines = open(md_path, encoding="utf-8").read().splitlines()
+    lines = Path(md_path).read_text(encoding="utf-8").splitlines()
     i = 0
     while i < len(lines):
         line = lines[i]
@@ -62,7 +68,7 @@ def convert(md_path, docx_path):
                 i += 1
             i += 1
             p = doc.add_paragraph()
-            run = p.add_run("\n".join(code))
+            run = p.add_run(clean_xml("\n".join(code)))
             run.font.name = "Consolas"
             run.font.size = Pt(9.5)
             continue
@@ -111,7 +117,7 @@ def convert(md_path, docx_path):
         # heading
         m = re.match(r"^(#{1,4})\s+(.*)$", stripped)
         if m:
-            doc.add_heading(m.group(2).strip(), level=len(m.group(1)))
+            doc.add_heading(clean_xml(m.group(2).strip()), level=len(m.group(1)))
             i += 1
             continue
 
@@ -147,7 +153,9 @@ def convert(md_path, docx_path):
         p = doc.add_paragraph()
         add_runs(p, " ".join(para))
 
-    doc.save(docx_path)
+    output = Path(docx_path)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    doc.save(output)
     print(f"Saved {docx_path}")
 
 
