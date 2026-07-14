@@ -1,16 +1,28 @@
 ---
 name: animation-principles
-description: Use when animating ANYTHING - UI transitions, CSS/JS motion, game feel, 3D character animation in Blender or three.js - or critiquing why motion feels robotic/floaty/cheap. The 12 classic principles, easing math, and per-medium timing numbers.
-category: creative
-hint: the 12 principles, timing, easing
+description: Use when designing or critiquing motion in UI, games, 2D, or 3D—especially timing, easing, weight, anticipation, overlap, readability, or reduced-motion behavior. Provides a medium-aware blocking, review, and polish workflow plus compact animation principles.
 ---
+
 # Animation Principles
 
-Motion reads as alive when it obeys physics and intent; it reads as robotic when values change linearly. These principles apply identically to a bouncing ball in Blender, a modal in CSS, and a jump in Godot.
+Motion often reads as alive when timing and spacing communicate physics and intent; it can read as robotic when interpolation is uniform without purpose. The principles transfer across a bouncing ball in Blender, a modal in CSS, and a jump in Godot, but their strength and implementation differ by medium.
 
-## The core: nothing moves linearly
+## Reliable workflow
 
-Real things accelerate and decelerate. **Ease-out** (fast start, slow settle) for things ENTERING or responding to user action — feels responsive. **Ease-in** (slow start, accelerating) for things EXITING or falling. **Ease-in-out** for things moving between two resting states. Pure `linear` is only for continuous mechanical motion (conveyor, spinner rotation, scrolling marquee).
+1. Define the action, intent, viewer focus, medium, frame rate, interaction constraints, and physical/stylistic reference.
+2. Block only the key states or poses: start, anticipation if needed, action/extreme, overshoot or impact, and settle. Judge silhouette and staging before interpolation.
+3. Set timing from distance, mass, force, and narrative importance. Preview at delivery speed and on the target device; do not judge motion by scrubbing alone.
+4. Add easing, arcs, overlap, follow-through, and secondary motion one layer at a time. Preserve the primary action's readability.
+5. Check frame-rate independence, loops, contacts, foot or object sliding, interruption/reversal, input latency, and `prefers-reduced-motion` or equivalent accessibility behavior.
+6. Compare against reference and remove motion that has no communicative or tactile purpose.
+
+When critiquing, identify the observed symptom, the likely motion cause, and the smallest change to test. Timing values below are starting ranges, not universal constants.
+
+**Output:** Provide either a motion plan (`states/poses → timing → easing/overlap → tests`) or a critique (`symptom → cause → smallest change → verification`).
+
+## The core: choose interpolation intentionally
+
+Many physical and expressive motions accelerate or decelerate. **Ease-out** often suits entry or direct response, **ease-in** often suits exit or falling away, and **ease-in-out** often suits travel between resting states. Use `linear` for intentionally constant rates such as progress, conveyor motion, or continuous rotation. Choose from the motion's cause and perception rather than applying an entering/exiting rule mechanically.
 
 CSS: `transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1)` (snappy ease-out) beats the anemic default `ease`. In code, easing = a function mapping t∈[0,1] → progress: easeOutCubic `1-(1-t)³`, easeInCubic `t³`, easeInOutCubic, easeOutBack (overshoots slightly — great for pop-ins), easeOutElastic (springy).
 
@@ -32,7 +44,7 @@ CSS: `transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1)` (snappy ease-o
 ## UI motion — the numbers
 
 - Micro-interactions (hover, press, toggle): **100–150ms**. Small transitions (dropdown, tooltip): **150–250ms**. Larger (modal, page element, drawer): **250–400ms**. Anything > 500ms that blocks the user is too slow; users feel it immediately on the second use.
-- Animate `transform` (translate/scale/rotate) and `opacity` ONLY — these are GPU-composited. Animating width/height/top/left/margin causes layout thrash and jank.
+- Prefer compositor-friendly `transform` and `opacity` for frequent UI motion. Layout-affecting properties can be valid when layout change is the meaning, but measure them and consider FLIP or equivalent techniques when performance matters.
 - Motion must MEAN something: show where a thing came from/went (the modal grows from the button that opened it), preserve continuity, direct attention. Decorative motion on every element is noise — and respect `prefers-reduced-motion`.
 - Stagger list items entering by ~20–50ms each; full-list simultaneous fade looks cheap, but >80ms stagger feels slow.
 

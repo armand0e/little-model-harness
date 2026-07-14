@@ -1,12 +1,21 @@
 ---
 name: clear-writing
 description: Use when drafting or editing any prose - emails, reports, docs, essays, announcements, summaries - or when asked to "make this better/clearer/shorter". Provides the revision moves that turn adequate text into sharp text.
-category: writing
-hint: make prose sharp: emails, reports, docs
 ---
+
 # Clear Writing
 
 Writing is thinking made checkable. Murky prose is usually a murky thought — fix the thought, then the sentence.
+
+## Reliable workflow
+
+1. Extract the non-negotiables: reader, purpose, requested action, facts that must survive, tone, length, and format.
+2. Write a one-sentence message before drafting. If the sentence contains several unrelated claims, split or prioritize them.
+3. Draft in decision order: outcome or ask → reason/evidence → detail → action or deadline.
+4. Revise in separate passes: structure, factual fidelity, sentence clarity, then tone and formatting. Do not polish sentences inside a broken structure.
+5. Compare the revision with the source or requirements. Check that no number, qualification, attribution, deadline, or obligation changed accidentally.
+
+When editing user text, return the revision first. Explain major editorial choices only when requested or when a change could alter meaning.
 
 ## Before drafting: the three questions
 
@@ -19,7 +28,7 @@ Writing is thinking made checkable. Murky prose is usually a murky thought — f
 - **Lead with the point** (BLUF: bottom line up front). Context and justification follow. The inverted pyramid: each paragraph less essential than the one before, so any truncation still delivers the message.
 - One idea per paragraph; the first sentence of each paragraph carries its idea (a reader skimming only first sentences should get the whole argument).
 - For requests/emails: the ask in the first two lines, with the deadline. Details below a clear break. Subject lines state the content, not "Question" — "Need sign-off on Q3 budget by Friday."
-- Sections/headers only past ~400 words. Ordered lists for sequences, unordered for genuinely parallel items — not as a substitute for connected thought.
+- Use sections or headers when they materially improve navigation; length alone is not the test. Use ordered lists for sequences and unordered lists for genuinely parallel items—not as a substitute for connected thought.
 
 ## Sentence-level moves (the editing pass)
 

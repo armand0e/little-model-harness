@@ -20,7 +20,7 @@ python3 -m venv .venv-build-linux
 # shellcheck disable=SC1091
 . .venv-build-linux/bin/activate
 pip install --quiet --upgrade pip
-pip install --quiet -r requirements.txt pyinstaller playwright "pywebview[qt]"
+pip install --quiet -r requirements.txt pyinstaller playwright
 
 python packaging/fetch_computer_use.py --output build/computer-use
 python -m PyInstaller packaging/littleharness.spec --noconfirm

@@ -37,8 +37,7 @@ echo "using $($PY --version) at $(command -v $PY)"
 # shellcheck disable=SC1091
 . .venv-build-mac/bin/activate
 pip install --quiet --upgrade pip
-# pywebview pulls pyobjc (Cocoa/WebKit window) automatically on macOS;
-# ApplicationServices/Quartz power the computer skill's permission checks
+# ApplicationServices/Quartz power the computer skill's permission checks.
 pip install --quiet -r requirements.txt pyinstaller playwright \
     pyobjc-framework-Quartz pyobjc-framework-ApplicationServices
 

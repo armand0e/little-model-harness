@@ -1,12 +1,24 @@
 ---
 name: negotiation-and-persuasion
 description: Use for negotiation, making a persuasive case, resolving conflict, asking for something (raise, deal, buy-in), or analyzing an argument's persuasive strategy. Provides principled-negotiation and honest-persuasion methods.
-category: writing
-hint: prepare and run negotiations
 ---
+
 # Negotiation & Persuasion
 
 Goal: reach agreements that hold and change minds honestly. Manipulation works once and poisons the relationship; principled methods compound.
+
+## Reliable workflow
+
+1. Define the issue, parties, decision authority, relationship, deadline, constraints, and what a durable agreement must accomplish.
+2. Write each side's stated positions, likely interests, alternatives, reservation point, and uncertainties. Improve your BATNA without bluffing about it.
+3. Gather objective criteria and generate several packages that trade across differently valued issues. Include implementation, contingencies, and what happens if assumptions fail.
+4. Ask diagnostic questions, summarize the other side's view until they confirm it, then make a clear, justified proposal and invite correction.
+5. Compare any deal with the BATNA, check fairness and consent, and resist urgency that prevents informed review.
+6. Document terms, owners, dates, dependencies, review points, and dispute handling in language both sides interpret the same way.
+
+For persuasion, disclose material facts and uncertainty, use reasons relevant to the audience's legitimate interests, and preserve a meaningful ability to say no. Do not optimize for compliance through deception, harassment, impersonation, manufactured scarcity, or exploitation of vulnerability.
+
+**Output:** Provide a preparation sheet or message containing interests, BATNA, objective criteria, proposed package, strongest concern, clear ask, and documentation/review step.
 
 ## Negotiation (interest-based, from "Getting to Yes")
 

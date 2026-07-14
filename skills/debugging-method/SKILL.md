@@ -1,28 +1,29 @@
 ---
 name: debugging-method
 description: Use when anything is broken - code bugs, failing tests, system faults, "it worked yesterday", or any troubleshooting (software or otherwise). Provides the hypothesis-driven method that beats random tweaking.
-category: software
-hint: systematic bug isolation and fixing
 ---
+
 # Debugging Method
 
 Debugging is applied science: observe, hypothesize, test the hypothesis with the cheapest discriminating experiment, repeat. Random tweaking ("maybe if I change this…") destroys evidence and wastes hours.
 
-## The method
+## Reliable workflow
 
-1. **Reproduce it.** A bug you can trigger on demand is half-solved. Find the minimal reliable trigger. If it's intermittent, find what makes it more frequent (load? timing? specific data?). Don't fix what you can't reproduce — you won't know you fixed it.
-2. **Read the actual error.** The full message, the full stack trace, top frame in YOUR code. The error text usually names the file, line, and cause. Resist skimming: `KeyError: 'user_id'` is not a mystery, it's an address.
-3. **State what changed.** Code worked before? Something changed: your code, a dependency, the data, the environment, the clock. `git diff`, recent deploys, new data shapes. Bisect history if needed (git bisect is O(log n) — 1000 commits is 10 checks).
-4. **Form hypotheses — at least two.** The #1 debugging failure is anchoring on the first theory. Write down the top 2–3 suspects with a quick prior on each.
-5. **Discriminate cheaply.** Design the observation that best splits your hypotheses: a print/log of the value AT the suspect boundary, a check whether the input is what you think, a run with the feature disabled. Change/observe ONE variable at a time.
-6. **Localize by bisection.** Cut the pipeline in half: is the data already wrong at the midpoint? Wrong → bug upstream; right → downstream. Repeat. Works on code, configs, data pipelines, and hardware alike.
-7. **Fix the cause, not the symptom.** Adding a `try/except` around the crash, a null-check that hides the missing value, or a `sleep()` for a race — these bury the bug for a worse day. Ask "why was the value null AT ALL?" — apply five-whys until you hit a cause whose fix prevents the class of bug.
-8. **Verify the fix + hunt siblings.** Re-run the original reproduction (must now pass), run the broader tests (must not newly fail), and grep for the same pattern elsewhere — bugs come in families. Add a regression test that would have caught it.
+1. **Capture the failure.** Record expected vs actual behavior, inputs, environment, frequency, and full error/trace. Minimize to a reliable trigger when possible; for intermittent faults, preserve logs and identify conditions that change frequency.
+2. **Read the actual error.** Preserve the full message and stack; locate the first relevant frame in code you control. Do not paraphrase away file, line, value, or exception details.
+3. **State what changed.** Check code, dependency, data, environment, configuration, and time changes. Use diffs, deploy history, or bisection when needed.
+4. **Form hypotheses — at least two.** Write a table: `hypothesis | predicted observation | cheapest discriminating test`. Rank by prior plausibility and evidence, not vividness.
+5. **Discriminate cheaply.** Run the observation that most cleanly separates the leading hypotheses: inspect the value at a boundary, validate the actual input, compare a known-good environment, or disable one component. Change one variable at a time and preserve the result.
+6. **Localize by bisection.** Inspect a midpoint: wrong means search upstream; right means search downstream. Repeat across code, configuration, data, or hardware boundaries.
+7. **Fix the cause at the correct boundary.** Avoid exceptions, null checks, retries, or sleeps that merely suppress evidence. If containment is necessary, label it as containment and keep the root-cause path open.
+8. **Verify and generalize.** Replay the trigger/trace, run broader tests, search for siblings, and add a regression test or monitor. For intermittent failures, collect enough observations to distinguish improvement from variance.
+
+**Output:** Report the observed failure, root cause with evidence, exact fix or containment, regression coverage, commands/tests run, and any path still unverified.
 
 ## Heuristics that pay rent
 
 - **Check the dumb things first**: is it plugged in / saved / deployed / the right environment / the right database / the file you think you're editing? Print `"AM I EVEN RUNNING"` — a shocking fraction of "impossible" bugs are the wrong code running.
-- **The bug is almost never in the compiler/OS/library.** It's in the newest, least-tested code: yours. Suspect your own diff first.
+- Start with the newest and least-tested code, configuration, data, or dependency change. Libraries, runtimes, and infrastructure do fail; keep them as hypotheses and use evidence to rank them.
 - **Question assumptions in order of least-verified.** "It can't be the input" — have you LOOKED at the input? Actual data beats assumed data.
 - **Rubber-duck it**: explain the code line-by-line aloud/in writing to no one. The act of serializing your assumptions exposes the false one.
 - **Heisenbugs** (vanish when observed) scream timing/concurrency/uninitialized memory. **Works-on-my-machine** screams environment: versions, env vars, locale, path separators, timezone.

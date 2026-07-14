@@ -1,10 +1,20 @@
 ---
 name: javascript-game-dev
 description: Use for building games in the browser with JavaScript - Canvas 2D games, three.js 3D games, the game loop, input, collision, simple physics, and browser-specific gotchas (audio unlock, timing, performance). Engine-level how-to; design theory lives in game-design-fundamentals.
-category: creative
-hint: browser games: canvas, loops, physics
 ---
+
 # JavaScript Game Development (Canvas 2D & three.js 3D)
+
+## Reliable workflow
+
+1. Inspect the runtime and constraints: browser/device targets, module/bundler setup, canvas sizing, asset pipeline, input methods, frame-rate target, and existing game state.
+2. Build a minimal playable slice: load → input → fixed or variable update → collision/state change → render → restart. Keep simulation state separate from drawing and DOM/UI state.
+3. Express movement and timers in seconds, define coordinate spaces, and centralize input state. Use a fixed step when deterministic collision or physics requires it.
+4. Test at throttled 30/60/120+ Hz, after a background-tab pause, with keyboard/pointer/touch, on resize/high-DPI, and with slow or failed asset loads.
+5. Profile before optimizing. Inspect long tasks, garbage collection, draw calls, overdraw, allocations, and asset sizes; change the measured bottleneck.
+6. Verify audio unlock, focus loss, pause/resume, save corruption/versioning, and at least one real target device before shipping.
+
+Return runnable setup plus any required HTML, CSS, assets, and event wiring. A code fragment that depends on unstated canvas or loader state is not a complete example.
 
 ## The loop — get this right first
 

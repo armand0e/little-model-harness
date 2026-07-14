@@ -1,8 +1,6 @@
 ---
 name: presentations
 description: Create or read PowerPoint (.pptx) presentations
-category: office
-hint: PowerPoint .pptx decks: create and read
 ---
 Create PowerPoint decks by writing a Markdown outline, then converting with the helper script. Do NOT write python-pptx code yourself.
 

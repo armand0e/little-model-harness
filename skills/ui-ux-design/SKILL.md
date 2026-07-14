@@ -1,20 +1,27 @@
 ---
 name: ui-ux-design
 description: Use when designing or critiquing any user interface - web pages, apps, dashboards, forms, landing pages - or answering "why does this look bad/feel clunky?" and "how should this screen work?". Provides visual hierarchy rules, spacing/type/color systems, and UX laws.
-category: creative
-hint: layout, hierarchy, flows users understand
 ---
+
 # UI/UX Design
+
+## Reliable workflow
+
+1. Define the primary user, context, top task, success metric, device/input modes, content constraints, and accessibility needs.
+2. Map the end-to-end flow and every state: first use, loading, empty, partial, success, validation error, system failure, offline/timeout, permission denied, and destructive recovery.
+3. Create a low-fidelity hierarchy before styling. Put the primary action and decisive information in the expected scan path; remove or defer lower-priority choices.
+4. Apply a small token system for spacing, type, color, radius, and elevation. Reuse established product patterns before inventing new interactions.
+5. Verify keyboard order, focus visibility, semantics, labels, zoom/reflow, contrast, target size, reduced motion, and screen-reader announcements as applicable.
+6. Test with representative content, long translations, small and large screens, slow networks, and at least one user who has not seen the design. Observe behavior before asking for opinions.
+7. Hand off states, behavior, responsive rules, tokens, content, and acceptance criteria—not only a happy-path screenshot.
+
+When critiquing, tie each finding to user impact and propose the smallest testable correction. Visual fashion is not evidence of usability.
 
 UI answers "does it look right?"; UX answers "does it work right for the person using it?". Both reduce to one principle: **reduce the user's cognitive load.** Every rule below serves that.
 
-## Verification is part of design
-
-Never finish UI work from source code alone. Run `visual_check` and personally inspect the attached desktop, tablet, and mobile screenshots. Capture important interaction states with `click_selector` and `state_label` (navigation open, modal open, validation errors, empty/loading states). Check for horizontal overflow, clipped text, broken imagery, weak contrast, inconsistent spacing, unclear hierarchy, and controls that disappear at narrow widths. Fix what you see and repeat the check until the screenshots support the claim that the interface is polished.
-
 ## Visual hierarchy — the 80% of "looking professional"
 
-The eye must know where to go first, second, third. Create hierarchy with (in order of power): **size, weight, color/contrast, spacing, position**. One screen = one primary action; make it visually loudest, and demote everything else deliberately (secondary buttons get outline style; tertiary get plain text links).
+The eye should know where to go first, second, and third. Create hierarchy with size, weight, color/contrast, spacing, and position. Give each task context a clear primary action or focal point; complex dashboards may support several actions, but their relative priority should remain explicit.
 
 Diagnosis: squint at the screen (or blur it). If everything blends into equal gray mush, there's no hierarchy. If the loudest element isn't the most important one, hierarchy is wrong.
 
@@ -28,7 +35,7 @@ Diagnosis: squint at the screen (or blur it). If everything blends into equal gr
 ## Typography
 
 - One or two typefaces max. A whole UI can be one family with varied size/weight.
-- A **type scale**: e.g. 12/14/16/20/24/32/48. Body text 16px minimum; line height ~1.5 for body, ~1.2 for headings; line length 45–75 characters.
+- Use a deliberate type scale, for example 12/14/16/20/24/32/48. Around 16 CSS px, body line-height near 1.4–1.6, and line length around 45–75 characters are useful starting points, then validate for the typeface, platform, language, and zoom behavior.
 - Hierarchy via weight and size, not many colors. Real text hierarchy: heading bold+large, body regular, secondary text smaller and/or muted gray (not lighter-than-readable).
 - Don't center paragraphs; don't use pure black on pure white (slightly soften one: #111 on #fff or off-white).
 
@@ -41,7 +48,7 @@ Diagnosis: squint at the screen (or blur it). If everything blends into equal gr
 
 ## UX laws (name-checkable, apply constantly)
 
-- **Fitts's law**: bigger + closer = easier to hit. Primary buttons are large; touch targets ≥ 44×44px; destructive actions are NOT adjacent to frequent ones.
+- **Fitts's law**: bigger + closer = easier to hit. Aim for comfortably large touch targets—often around 44×44 CSS px—and meet the applicable accessibility standard; keep destructive actions away from frequent ones.
 - **Hick's law**: more choices = slower decisions. Trim menus; progressive disclosure (advanced options behind "More").
 - **Jakob's law**: users expect your site to work like every other site. Logo top-left links home; cart top-right; search looks like search. Novelty in navigation is a tax on users.
 - **Miller's limit**: don't make people hold >~4–7 items in memory; show state, don't make them remember it.

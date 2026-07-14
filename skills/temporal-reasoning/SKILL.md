@@ -1,10 +1,19 @@
 ---
 name: temporal-reasoning
 description: Use for anything about dates, calendars, days of the week, durations, time zones, scheduling, ages, deadlines, or "how long between". These calculations look easy and are error factories; this skill provides safe procedures.
-category: reasoning
-hint: dates, durations, timezones, scheduling
 ---
+
 # Temporal Reasoning — Dates, Durations, Time Zones
+
+## Reliable workflow
+
+1. Parse each time as `date`, `clock time`, `calendar/time zone`, and `precision`. Resolve or state ambiguity around inclusive endpoints, midnight, fiscal calendars, and relative words such as `next`.
+2. Convert named-zone times with an IANA time zone and a current time-zone database or trusted tool. Do not infer daylight-saving offsets from season alone.
+3. For elapsed durations, convert instants to a common timeline such as UTC, subtract, then express the result in the requested units. For calendar periods such as `one month`, use calendar arithmetic instead of assuming a fixed number of seconds.
+4. For recurring schedules, test gaps and folds around daylight-saving transitions and state whether the recurrence follows local wall time or a fixed elapsed interval.
+5. Verify with a second representation: ISO 8601 timestamps with offsets, weekday recount, or a date/time library.
+
+Return exact dates and include the zone or UTC offset. If a historical or future civil-time rule is uncertain, say that the applicable jurisdiction's rule must be checked.
 
 ## Calendar facts
 
@@ -25,9 +34,9 @@ hint: dates, durations, timezones, scheduling
 
 ## Time zones
 
-- UTC is the reference. Zones are offsets: New York UTC−5 (winter)/−4 (summer DST), Los Angeles UTC−8/−7, London UTC+0/+1, Central Europe +1/+2, India **+5:30** (half-hour zones exist; Nepal +5:45!), China +8 (one zone for the whole country, no DST), Japan +9 (no DST), Sydney +10/+11 (southern hemisphere DST is OPPOSITE: their summer is Nov–Mar).
-- Method: convert to UTC, then to the target zone. 3 pm New York (summer, UTC−4) = 19:00 UTC = 12 pm Los Angeles (UTC−7) — never chain offsets casually.
-- East is later-in-the-day: Tokyo is ahead of London. Crossing the date line westward from the US to Asia, you lose a day: leave SF Monday evening, land Tokyo Wednesday afternoon — flight was still ~11 h.
+- UTC is the reference, but a civil time zone is a dated rule set, not a permanent offset. Use names such as `America/New_York` and `Asia/Kolkata`, not abbreviations such as `EST` or `IST`. Half- and quarter-hour offsets exist.
+- Method: resolve the source local time on its date, convert to UTC, then convert to the target named zone. A 3 pm New York to Los Angeles example is often a three-hour difference, but verify the actual date because rules and transition dates can differ.
+- East is generally later in civil time: Tokyo is ahead of London. Crossing the date line westward from the US to Asia advances the calendar date by a day; elapsed flight time remains ordinary.
 - DST: clocks spring forward ~March (US)/late March (EU) and fall back ~November/late October — dates differ by region, so NY↔London is usually 5 h apart but 4 h for a few weeks a year. For scheduling across zones near DST boundaries, state times in both zones explicitly.
 - "Noon" = 12:00 pm; "midnight" = 12:00 am, and "midnight Tuesday" is ambiguous (start or end of Tuesday?) — use 23:59 or 00:01 in anything binding.
 

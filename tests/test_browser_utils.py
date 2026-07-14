@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import socket
+import threading
 
 import harness.browser as browser
 
@@ -52,3 +53,35 @@ def test_reddit_formatter_handles_posts_listings_and_malformed_data():
     }}]}}
     assert "Listed" in browser._format_reddit(listing)
     assert "0 posts" in browser._format_reddit([{"unexpected": True}])
+
+
+def test_browser_control_rejects_unsafe_navigation_before_starting_worker():
+    assert browser.control("open", url="http://localhost:8000").startswith(
+        "Error: browser navigation only permits public hosts")
+    assert browser.control("click", ref="made-up").startswith(
+        "Error: browser ref must look like e1")
+
+
+def test_browser_control_state_is_compact_and_ref_addressable():
+    report = browser._format_control_state({
+        "title": "Example", "url": "https://example.com/",
+        "elements": [{"ref": "e1", "role": "button", "name": "Continue",
+                      "value": "", "disabled": False}],
+        "text": "Visible content",
+    })
+    assert "e1 button 'Continue'" in report
+    assert "Visible content" in report
+    assert "secret ? '[redacted]'" in browser.CONTROL_STATE_JS
+    redacted = browser._redact_control_url(
+        "https://example.com/callback?code=abc&view=inbox#access_token=xyz")
+    assert "abc" not in redacted and "xyz" not in redacted
+    assert "view=inbox" in redacted
+
+
+def test_browser_worker_submission_honors_an_already_stopped_turn(
+        monkeypatch):
+    stop = threading.Event()
+    stop.set()
+    monkeypatch.setattr(browser._worker, "_ensure_thread", lambda: None)
+    result = browser.control("state", stop_event=stop)
+    assert result == "Error: browser action stopped by user."

@@ -20,7 +20,9 @@ import re
 import socket
 import threading
 import time
-from urllib.parse import parse_qs, quote_plus, unquote, urlsplit, urlunsplit
+from pathlib import Path
+from urllib.parse import (parse_qs, parse_qsl, quote_plus, unquote, urlencode,
+                          urlsplit, urlunsplit)
 
 from .config import BROWSER_PROFILE_DIR
 
@@ -258,19 +260,22 @@ class _BrowserWorker:
             for i in range(len(parts) - 1):
                 if ".".join(parts[i:]) in AD_HOSTS:
                     return route.abort()
-            if route.request.resource_type in ("image", "media", "font"):
-                return route.abort()
             return route.continue_()
 
         ctx.route("**/*", block_ads)
         return ctx
 
-    def submit(self, fn, timeout: float = 75.0):
+    def submit(self, fn, timeout: float = 75.0,
+               stop_event: threading.Event | None = None):
+        if stop_event is not None and stop_event.is_set():
+            raise InterruptedError("browser action stopped by user")
         self._ensure_thread()
         out: queue.Queue = queue.Queue()
         self._jobs.put((fn, out))
         deadline = time.monotonic() + timeout
         while True:
+            if stop_event is not None and stop_event.is_set():
+                raise InterruptedError("browser action stopped by user")
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 raise TimeoutError("browser job timed out")
@@ -437,6 +442,195 @@ def fetch(url: str) -> str:
             return body[:MAX_CONTENT]
         return _with_page(ctx, run)
     return _worker.submit(job)
+
+
+CONTROL_STATE_JS = r"""() => {
+  const visible = (el) => {
+    const r = el.getBoundingClientRect();
+    const s = getComputedStyle(el);
+    return r.width > 1 && r.height > 1 && s.visibility !== 'hidden' &&
+      s.display !== 'none' && Number(s.opacity || 1) > 0;
+  };
+  document.querySelectorAll('[data-lmh-ref]').forEach(el =>
+    el.removeAttribute('data-lmh-ref'));
+  const selector = 'a[href],button,input,textarea,select,summary,[role="button"],' +
+    '[role="link"],[role="tab"],[contenteditable="true"]';
+  const elements = [];
+  for (const el of document.querySelectorAll(selector)) {
+    if (!visible(el) || elements.length >= 80) continue;
+    const ref = `e${elements.length + 1}`;
+    el.setAttribute('data-lmh-ref', ref);
+    const role = el.getAttribute('role') || el.tagName.toLowerCase();
+    const inputType = (el.getAttribute('type') || '').toLowerCase();
+    const autocomplete = (el.getAttribute('autocomplete') || '').toLowerCase();
+    const secret = inputType === 'password' ||
+      /(?:password|cc-number|cc-csc)/.test(autocomplete);
+    const rawValue = secret ? '' : el.value;
+    const name = (el.getAttribute('aria-label') || el.getAttribute('title') ||
+      el.getAttribute('placeholder') || el.innerText || rawValue ||
+      el.getAttribute('alt') || '').replace(/\s+/g, ' ').trim().slice(0, 160);
+    const value = secret ? '[redacted]' :
+      (['INPUT','TEXTAREA','SELECT'].includes(el.tagName)
+        ? String(el.value || '').slice(0, 120) : '');
+    elements.push({ref, role, name, value, disabled: !!el.disabled});
+  }
+  const main = document.querySelector('main,article,[role="main"]') || document.body;
+  const text = (main?.innerText || '').replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n').trim().slice(0, 5000);
+  return {url: location.href, title: document.title || '', elements, text};
+}"""
+
+
+def _control_url(url: str) -> str:
+    url = url.strip()
+    if not re.match(r"^[a-z][a-z0-9+.-]*://", url, re.I):
+        url = "https://" + url
+    try:
+        parsed = urlsplit(url)
+    except ValueError as exc:
+        raise ValueError("invalid browser URL") from exc
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        raise ValueError("browser navigation requires an http(s) URL")
+    if parsed.username is not None or parsed.password is not None:
+        raise ValueError("browser URLs cannot contain credentials")
+    if not _host_is_public(parsed.hostname):
+        raise ValueError("browser navigation only permits public hosts")
+    return url
+
+
+def _control_page(ctx):
+    pages = [page for page in ctx.pages if not page.is_closed()]
+    if pages:
+        return pages[-1]
+    return ctx.new_page()
+
+
+def _format_control_state(state: dict) -> str:
+    lines = [f"Page: {state.get('title') or '(untitled)'}",
+             f"URL: {_redact_control_url(str(state.get('url', '')))}"]
+    elements = state.get("elements") or []
+    if elements:
+        lines.append("Interactive elements (use the exact ref):")
+        for item in elements:
+            suffix = f" value={item['value']!r}" if item.get("value") else ""
+            disabled = " disabled" if item.get("disabled") else ""
+            lines.append(
+                f"{item['ref']} {item['role']} {item['name']!r}{suffix}{disabled}")
+    body = str(state.get("text") or "")
+    if body:
+        lines.extend(("Page text:", body))
+    return "\n".join(lines)[:MAX_CONTENT]
+
+
+def _redact_control_url(url: str) -> str:
+    try:
+        parsed = urlsplit(url)
+    except ValueError:
+        return url[:1000]
+    sensitive = re.compile(
+        r"(?:token|secret|password|passwd|session|auth|signature|credential|code)",
+        re.IGNORECASE)
+
+    def redact(component: str) -> str:
+        if "=" not in component:
+            return component
+        return urlencode([
+            (key, "[redacted]" if sensitive.search(key) else value)
+            for key, value in parse_qsl(component, keep_blank_values=True)
+        ])
+
+    return urlunsplit((parsed.scheme, parsed.netloc, parsed.path,
+                       redact(parsed.query), redact(parsed.fragment)))[:1000]
+
+
+def control(action: str, *, url: str | None = None, ref: str | None = None,
+            text: str | None = None, key: str | None = None,
+            direction: str = "down", amount: int = 650,
+            wait_ms: int = 500, screenshot_dir: Path | None = None,
+            stop_event: threading.Event | None = None) -> str:
+    """Operate one persistent, sandboxed browser page and return fresh state.
+
+    The returned MCP-compatible image marker lets the existing agent image
+    pipeline attach the screenshot to vision-capable models without adding a
+    second image protocol.
+    """
+    allowed = {"open", "state", "click", "type", "press", "select",
+               "scroll", "back", "forward", "reload", "wait", "screenshot"}
+    if action not in allowed:
+        return f"Error: unknown browser action {action!r}."
+    if action == "open" and not url:
+        return "Error: browser open requires url."
+    safe_url: str | None = None
+    if action == "open":
+        try:
+            safe_url = _control_url(str(url))
+        except ValueError as exc:
+            return f"Error: {exc}"
+    if action in {"click", "type", "select"} and not ref:
+        return f"Error: browser {action} requires ref from the latest state."
+    if ref and not re.fullmatch(r"e[1-9][0-9]{0,2}", ref):
+        return "Error: browser ref must look like e1 and come from the latest state."
+    if action in {"type", "select"} and text is None:
+        return f"Error: browser {action} requires text."
+    wait_ms = min(max(int(wait_ms), 0), 10_000)
+    amount = min(max(int(amount), 50), 5000)
+
+    def job(ctx):
+        page = _control_page(ctx)
+        if action == "open":
+            page.goto(str(safe_url), wait_until="domcontentloaded")
+        elif action == "click":
+            page.locator(f'[data-lmh-ref="{ref}"]').click()
+        elif action == "type":
+            target = page.locator(f'[data-lmh-ref="{ref}"]')
+            target.fill(str(text))
+        elif action == "select":
+            page.locator(f'[data-lmh-ref="{ref}"]').select_option(label=str(text))
+        elif action == "press":
+            if not key:
+                raise ValueError("browser press requires key")
+            page.keyboard.press(key)
+        elif action == "scroll":
+            delta = amount if direction == "down" else -amount
+            if direction in {"left", "right"}:
+                page.mouse.wheel(delta if direction == "right" else -delta, 0)
+            else:
+                page.mouse.wheel(0, delta)
+        elif action == "back":
+            page.go_back(wait_until="domcontentloaded")
+        elif action == "forward":
+            page.go_forward(wait_until="domcontentloaded")
+        elif action == "reload":
+            page.reload(wait_until="domcontentloaded")
+        if wait_ms:
+            page.wait_for_timeout(wait_ms)
+        state = page.evaluate(CONTROL_STATE_JS)
+        image = page.screenshot(type="jpeg", quality=72)
+        saved = None
+        if screenshot_dir is not None:
+            output = screenshot_dir.resolve() / ".lmh" / "browser"
+            output.mkdir(parents=True, exist_ok=True)
+            saved = output / "current.jpg"
+            saved.write_bytes(image)
+        report = _format_control_state(state)
+        if saved is not None:
+            report += f"\nBrowser screenshot: {saved}"
+        payload = {
+            "report": report,
+            "images": [{"data": base64.b64encode(image).decode("ascii"),
+                        "mimeType": "image/jpeg"}],
+        }
+        return "__MCP_IMAGE_RESULT__:" + json.dumps(
+            payload, ensure_ascii=False, separators=(",", ":"))
+
+    if stop_event is not None and stop_event.is_set():
+        return "Error: browser action stopped by user."
+    try:
+        return _worker.submit(job, stop_event=stop_event)
+    except InterruptedError:
+        return "Error: browser action stopped by user."
+    except Exception as exc:
+        return f"Error: browser {action} failed: {type(exc).__name__}: {exc}"
 
 
 def self_test() -> dict:

@@ -1,8 +1,7 @@
 """Desktop entry point for the packaged app.
 
-- Default: run the server in a background thread and show the UI in a
-  native desktop window (pywebview: WebView2 on Windows, Qt/GTK on
-  Linux). Closing the window quits the app.
+- Default: run the in-process PySide6/Qt desktop client. No localhost server
+  is created for the desktop UI.
 - `--server-only` (or LMH_NO_WINDOW=1): headless server, no window.
 - `--runpy script.py [args]`: run a Python script inside the bundled
   interpreter — this is how skill helper scripts execute on machines
@@ -16,36 +15,9 @@ import socket
 import sys
 import threading
 import time
-import webbrowser
 from typing import Any
 
 APP_NAME = "Little Harness"
-
-
-class WindowApi:
-    """Small, explicit bridge for the frameless desktop chrome."""
-
-    def __init__(self) -> None:
-        self.window: Any | None = None
-        self._maximized = False
-
-    def minimize(self) -> None:
-        if self.window is not None:
-            self.window.minimize()
-
-    def toggle_maximize(self) -> bool:
-        if self.window is None:
-            return False
-        if self._maximized:
-            self.window.restore()
-        else:
-            self.window.maximize()
-        self._maximized = not self._maximized
-        return self._maximized
-
-    def close(self) -> None:
-        if self.window is not None:
-            self.window.destroy()
 
 
 def _runpy_mode() -> None:
@@ -170,18 +142,21 @@ def main() -> None:
                 or bool(os.environ.get("LMH_NO_WINDOW"))
                 or bool(os.environ.get("LMH_NO_BROWSER")))  # back-compat
 
-    port = _free_port()
-    url = f"http://127.0.0.1:{port}"
-    server, server_thread = _start_server(port)
-    if not _wait_ready(port):
-        print(f"{APP_NAME} server failed to start on {url}", file=sys.stderr,
-              flush=True)
-        server.should_exit = True
-        server_thread.join(timeout=2.0)
-        return
-    print(f"{APP_NAME} running at {url}", flush=True)
+    if "--native-smoke" in sys.argv[1:]:
+        from .native.app import smoke_native
+        raise SystemExit(smoke_native())
 
     if headless:
+        port = _free_port()
+        url = f"http://127.0.0.1:{port}"
+        server, server_thread = _start_server(port)
+        if not _wait_ready(port):
+            print(f"{APP_NAME} server failed to start on {url}", file=sys.stderr,
+                  flush=True)
+            server.should_exit = True
+            server_thread.join(timeout=2.0)
+            return
+        print(f"{APP_NAME} server-only mode running at {url}", flush=True)
         try:
             server_thread.join()
         except KeyboardInterrupt:
@@ -190,27 +165,11 @@ def main() -> None:
             _stop_server(server, server_thread)
         return
 
-    # ---- the app window ----
+    from .native import run_native
     try:
-        try:
-            import webview
-            window_api = WindowApi()
-            window_api.window = webview.create_window(
-                APP_NAME, url + "/?desktop=1", width=1360, height=880,
-                min_size=(920, 620), confirm_close=False,
-                text_select=True, zoomable=True, frameless=True,
-                easy_drag=False, js_api=window_api,
-            )
-            webview.start()      # blocks until the window is closed
-        except Exception:
-            # no webview backend on this machine — at least show the UI
-            webbrowser.open(url)
-            server_thread.join()
+        run_native()
     except KeyboardInterrupt:
         pass
-    finally:
-        # Window/browser closed: stop work, persist, then shut down uvicorn.
-        _stop_server(server, server_thread)
 
 
 if __name__ == "__main__":

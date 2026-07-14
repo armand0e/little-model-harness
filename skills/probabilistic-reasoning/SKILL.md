@@ -1,10 +1,20 @@
 ---
 name: probabilistic-reasoning
 description: Use for any question involving probability, chance, likelihood, uncertainty, medical-test accuracy, false positives, gambling odds, Bayes' rule, expected value, or "what are the chances". Provides formulas, the natural-frequency method, and the classic traps.
-category: reasoning
-hint: probability, Bayes, expected value
 ---
+
 # Probabilistic Reasoning
+
+## Reliable workflow
+
+1. Define the events, population, time horizon, and conditioning information. Rewrite `given`, `at least`, `exactly`, `either`, and `both` in event notation.
+2. Draw a tree, 2×2 table, or natural-frequency table before choosing a formula. Mark which branches are conditional.
+3. Test independence rather than assuming it. If learning A changes the chance of B, use conditional probability.
+4. Calculate with unrounded values, then check bounds, complements, and whether component probabilities sum correctly.
+5. Compare the result with a base-rate estimate or simulation on a small case. Explain any counterintuitive result through the denominator or conditioning set.
+6. Report the probability, assumptions, and sensitivity to the most uncertain input. Distinguish aleatory uncertainty from missing knowledge when it matters.
+
+Never assign exact probabilities without a model, data, or explicit subjective assumptions. For one-off high-stakes choices, report downside and uncertainty as well as expected value.
 
 ## Core rules
 

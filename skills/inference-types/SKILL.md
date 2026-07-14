@@ -1,12 +1,21 @@
 ---
 name: inference-types
 description: Use when choosing HOW to reason about a problem — deduction vs induction vs abduction — or when asked to generalize from examples, find the best explanation, or judge how confident a conclusion can be given the evidence type.
-category: reasoning
-hint: deduction vs induction vs abduction
 ---
+
 # Types of Inference — and How Much Confidence Each Earns
 
 Pick the mode consciously; each licenses a different confidence level in the conclusion.
+
+## Reliable workflow
+
+1. Write the claim and the evidence separately.
+2. Classify the inferential step: deduction, induction, abduction, analogy, or a mixture. Name the step that carries the most uncertainty.
+3. Apply only the confidence licensed by that mode: deduction is conditional on premises; induction depends on sample and stability; abduction remains provisional; analogy depends on causal similarity.
+4. Generate at least one rival conclusion or explanation, then check which observation would discriminate between them.
+5. State the result as `entailed`, `supported`, `best current explanation`, or `speculative analogy`, followed by the key limitation.
+
+Do not upgrade a conclusion merely because several weak inferences point the same way if they all depend on the same evidence or assumption.
 
 ## 1. Deduction — certainty from premises
 

@@ -1,10 +1,21 @@
 ---
 name: chemistry-essentials
-description: Use for chemistry questions - elements, reactions, acids/bases, household chemistry, "is this mixture safe", molecular basics - and for sanity-checking chemical claims in everyday contexts.
-category: science
-hint: stoichiometry, bonding, reactions
+description: Use for chemistry explanations and calculations involving atoms, reactions, acids/bases, concentration, or everyday chemical claims. For mixture safety, spills, exposure, or hazardous procedures, identify substances and defer to product labels, SDS guidance, poison control, emergency services, or qualified professionals as appropriate.
 ---
+
 # Chemistry Essentials
+
+## Reliable workflow
+
+1. Identify every substance, formula, concentration, amount, physical state, solvent, temperature, pressure, and container condition. Do not reason from a brand name alone.
+2. Classify the task as conceptual, stoichiometric, equilibrium, thermodynamic, kinetic, or safety-related. Write and balance the relevant equation before calculating.
+3. Convert to moles or another conserved quantity, track units, identify limiting reagents, and distinguish concentration from total amount.
+4. Check charge, atom balance, phase, plausible products, sign, magnitude, and whether the assumed reaction actually occurs under the stated conditions.
+5. For safety questions, stop before proposing a mixture or cleanup if composition is unknown or hazardous. Use the product label/SDS and local professional guidance.
+
+Never infer safety from a household name, low concentration alone, or the absence of an immediate odor or reaction.
+
+**Output:** For calculations, show the balanced relationship, conserved quantity, units, result, and check. For safety, identify known hazards and the authoritative next step without inventing a procedure.
 
 ## Atoms & elements
 
@@ -20,14 +31,14 @@ H₂O water, CO₂ carbon dioxide, CO carbon monoxide (odorless, binds hemoglobi
 
 ## Acids & bases
 
-- pH 0–14; 7 neutral; below acid, above base. LOG scale: pH 3 is 10× more acidic than pH 4.
+- In dilute aqueous solutions near room temperature, pH is commonly discussed on a roughly 0–14 scale and neutral is near 7; concentrated or non-aqueous systems can fall outside that range. The scale is logarithmic: a one-unit change represents a tenfold change in hydrogen-ion activity.
 - Anchors: battery acid ~0.5, stomach acid ~1.5, lemon ~2, vinegar ~2.5, coffee ~5, rain ~5.6, milk ~6.7, pure water 7, blood 7.35–7.45 (tightly regulated — "alkaline diets" can't move it), baking soda solution ~8.5, ammonia ~11, bleach ~12.5, lye ~14.
-- Acid + base → salt + water (neutralization). Baking soda on acid spills; vinegar for alkaline scale (kettle limescale: CaCO₃ + acid → dissolves, fizzing CO₂).
+- Many acid-base reactions form a salt and often water, but heat, gas, splashing, and incompatible contaminants can make deliberate neutralization hazardous. Vinegar can dissolve ordinary kettle limescale when the appliance instructions permit it; do not generalize that to unknown spills.
 
 ## Household chemistry safety (the load-bearing facts)
 
-- **NEVER mix bleach + ammonia** (chloramine gas) or **bleach + any acid** (vinegar, some cleaners → chlorine gas). Bleach mixes with nothing but water.
-- Combustion needs fuel + oxygen + heat; remove one to extinguish. NEVER water on a grease fire (steam explosion sprays burning oil) — smother it. CO from incomplete combustion: never run engines/charcoal/generators indoors.
+- **Never mix bleach with ammonia, acids, or other cleaners**; toxic gases or other hazardous products can form. Dilute or use a product only as its label directs, with ventilation and protective measures specified there.
+- Combustion needs fuel + oxygen + heat. Never put water on a grease fire; if the fire is small and it is safe to act, turn off the heat and cover the pan with a metal lid or use an appropriate kitchen-fire extinguisher. Otherwise evacuate and call local emergency services. Never run engines, charcoal, or generators indoors because incomplete combustion can produce carbon monoxide.
 - "Natural" ≠ safe (botulinum, arsenic, ricin are natural); "chemical" ≠ harmful (water is a chemical). **The dose makes the poison** — everything is toxic at some dose (even water), most things safe at some dose. Claims of "toxins" without naming the substance AND dose are marketing.
 
 ## Reactions in daily life

@@ -1,10 +1,20 @@
 ---
 name: threejs-essentials
 description: Use for anything three.js / WebGL 3D in the browser - scenes, cameras, materials, lighting, loading models, animation loops, shaders-adjacent questions, and performance. Provides the mental model, correct boilerplate, and the standard pitfalls.
-category: creative
-hint: Three.js: scenes, meshes, lights
 ---
+
 # three.js Essentials
+
+## Reliable workflow
+
+1. Inspect the installed three.js revision, package/import-map setup, browser targets, renderer, color-management settings, asset encodings, and existing render loop. Match examples to that version.
+2. Reduce to one visible primitive with camera, renderer, resize handling, and known lighting before adding models, postprocessing, controls, or interaction.
+3. Add one subsystem at a time and verify coordinate space, units, transforms, material/light requirements, async loading, and ownership/disposal.
+4. For visual defects, use helpers, unlit diagnostic materials, wireframe/normals, bounding boxes, and camera/frustum inspection. For performance, measure `renderer.info`, frame time, GPU time when available, and asset cost.
+5. Test resize, high-DPI caps, context loss where relevant, loading failure, disposal/reload, and representative desktop/mobile hardware.
+6. Return a minimal runnable example with exact imports and required DOM/CSS. State the verified three.js revision and any version-sensitive API.
+
+Do not repair an invisible object by randomly changing scale, camera, material, and lighting together; isolate one cause per test.
 
 ## The mental model
 
@@ -76,16 +86,12 @@ glTF (.glb) is THE format — from Blender, export glTF; use `GLTFLoader` (+`DRA
 
 ## Performance (in impact order)
 
-1. **Draw calls** rule everything: hundreds ok, thousands bad. Merge static geometry (`BufferGeometryUtils.mergeGeometries`) or use `InstancedMesh` for many copies of one thing (grass, particles, crowds — one draw call for 10,000 instances).
+1. **Draw calls** are often a major CPU-side cost, but acceptable counts depend on device, material passes, geometry, shaders, and scene. Measure first; merge compatible static geometry or use `InstancedMesh` for many copies of one thing.
 2. Cap `setPixelRatio(≤2)`. Shadows are expensive — limit shadow-casting lights (each = extra scene render).
 3. Reuse geometries/materials; **dispose what you remove** (`geometry.dispose()`, `material.dispose()`, `texture.dispose()`) or leak GPU memory.
-4. Textures: power-of-two sizes, compressed (KTX2) at scale; keep well under 2048² unless justified.
-5. Don't create objects (`new Vector3`) inside the render loop — reuse scratch vectors; the GC hitches are your stutters.
+4. Use appropriately sized, mipmapped, and compressed textures such as KTX2 when the pipeline supports them. Power-of-two dimensions are useful or required for some formats/features, not a universal modern-WebGL rule.
+5. Avoid high-volume transient allocation in hot loops when profiling shows garbage-collection pressure; reuse scratch objects where it improves measured frame stability.
 
 ## Debug kit
 
 `console.log(scene)` and walk the tree; `AxesHelper`, `GridHelper`, `DirectionalLightHelper`, `CameraHelper` (for shadow cameras); lil-gui for live-tweaking values (roughness, positions) — tune visually, never by reload-guessing. Stats.js/`renderer.info` for draw calls and memory.
-
-## Single-file pages (IMPORTANT for artifacts)
-A page that must work when opened from disk (file://) or in a preview iframe CANNOT use ES module imports — they fail silently (black screen). Use the global build:
-`<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js"></script>` then the `THREE` global. No `type="module"`, no import maps, unless the page will be served over http. write_file auto-checks saved .html in a headless browser and reports console errors — read that report and fix before telling the user it works.

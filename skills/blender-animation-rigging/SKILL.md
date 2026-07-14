@@ -1,12 +1,22 @@
 ---
 name: blender-animation-rigging
 description: Use for Blender animation and rigging - keyframes, the Graph Editor, armatures, weight painting, IK/FK, walk cycles, and exporting animations to game engines or three.js. Pairs with animation-principles for the artistic side.
-category: creative
-hint: Blender rigging and animation
 ---
+
 # Blender Animation & Rigging
 
 Artistic principles (easing, anticipation, arcs, timing) live in the animation-principles skill; this is the Blender machinery.
+
+## Reliable workflow
+
+1. Confirm the Blender version, target renderer/engine, frame rate, unit scale, clip list, root-motion convention, and export format before rigging.
+2. Preserve a clean rest-pose source. Apply intended object transforms, fix topology and normals, name deform/control bones consistently, and test scale/orientation before detailed weights.
+3. Build and validate one limb chain first: joint placement, roll, parent relationships, constraints, IK pole direction, deformation, and control reset.
+4. Block key poses on stepped interpolation, approve timing, then polish curves, contacts, arcs, overlap, and transitions. Keep controls and deform bones conceptually separate.
+5. Test extreme poses and inspect weight sums, volume loss, twists, foot/hand sliding, and constraint cycles.
+6. Bake constraint-driven motion as required, export a minimal clip, and round-trip it in the target runtime before producing all actions.
+
+Return exact mode, selection order, editor, and property names for procedural instructions. UI paths and bundled extensions can change across Blender releases, so verify version-specific steps.
 
 ## Keyframe basics
 
@@ -33,7 +43,7 @@ Workflow: block all key poses on CONSTANT interpolation → judge timing by scru
 - **FK** (default): rotate each bone down the chain — natural for arcs (swinging arms, tails).
 - **IK**: place a target, the chain solves — essential for feet planted on ground and hands on fixed objects. Add via bone constraint (Inverse Kinematics, chain length 2 for a leg) with a separate non-deforming target bone + pole target (aims the knee/elbow).
 - Legs: almost always IK. Arms: FK for gesture/swing, IK for contact — rigs often switch.
-- Don't hand-build production character rigs when **Rigify** (bundled addon) generates a full IK/FK-switching rig from a metarig you fit to the character.
+- Consider **Rigify** or another maintained rig generator for conventional characters instead of hand-building every control. Availability and installation differ by Blender version; generated rigs still require fitting, deformation tests, and export validation.
 
 ## Walk cycle quick recipe (see animation-principles for theory)
 
@@ -46,10 +56,3 @@ Each clip (idle, walk, run, jump) is an **Action** (Dope Sheet → Action Editor
 ## Export checklist (glTF → engines/three.js)
 
 Apply object scale/rotation (`Ctrl+A`) BEFORE rigging (after = broken weights). Root the character at world origin, feet at Z=0. In the glTF exporter: include Animations, all actions; sample/bake if using constraints or IK (engines can't evaluate Blender constraints — baking converts them to plain keyframes). Test the .glb in an online glTF viewer before blaming the engine.
-
-## Blender 4/5 scripting gotchas (animation)
-- Keyframe with `obj.keyframe_insert(data_path="location", frame=n)` (also "rotation_euler", "scale"). NEVER use `action.fcurves.new()` / `adt.fcurves` — removed in 5.x.
-- Interpolation defaults to Bezier; to change it, set `bpy.context.preferences.edit.keyframe_new_interpolation_type` BEFORE inserting keys.
-- `scene.render.fps = 24`; frame range via `scene.frame_start/frame_end`.
-- Constraints: `obj.constraints.new('TRACK_TO')` (enum string), then set `.target`.
-- Verify by running `& '<blender.exe>' --background --python script.py` and reading stderr; render a preview with `--render-anim` only after the script runs clean.

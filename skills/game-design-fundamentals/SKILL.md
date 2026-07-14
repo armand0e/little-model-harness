@@ -1,10 +1,20 @@
 ---
 name: game-design-fundamentals
 description: Use when designing a game - mechanics, difficulty, progression, "why isn't my game fun", scoping a game project, or engine-agnostic architecture (game loop, state machines, entities). The design layer above any specific engine.
-category: creative
-hint: mechanics, loops, balance, playtesting
 ---
+
 # Game Design Fundamentals
+
+## Reliable workflow
+
+1. Define target player, platform, session length, desired experience, constraints, and one testable design hypothesis.
+2. Write the core loop as `player decision → action → system response → feedback → changed decision`. Identify the meaningful tradeoff and failure/recovery loop.
+3. Build the smallest playable prototype with placeholder content and instrumentation. Test the riskiest mechanic before progression, lore, or content volume.
+4. Observe players without coaching. Record behavior, confusion, retries, quitting points, and the model they report afterward; do not reduce all feedback to stated preference.
+5. Change one major variable, replay the test, and compare against a success metric such as comprehension, control error, decision diversity, or return intent.
+6. Protect scope with a priority stack: core promise, required support, polish, optional content. Cut features that do not strengthen the promise.
+
+Return a concrete loop, prototype scope, test question, success signal, and next cut. `Fun` is an outcome to operationalize, not an explanation.
 
 ## The loop is the game
 
@@ -22,7 +32,7 @@ Every game is a **core loop** the player repeats hundreds of times: (act → fee
 ## Scope — the #1 killer of game projects
 
 Your first estimate is 5–10× too small (see cognitive-biases → planning fallacy). Rules:
-- First finished game: ONE mechanic, one level, one enemy type, one week. Finishing teaches more than five abandoned epics. An MMO/open-world/roguelike-with-everything as a first project has a ~100% mortality rate.
+- For a first finished game, constrain the project aggressively—often one mechanic, one short level, one enemy type, and a short deadline. Large online or open-world projects combine many hard systems and are poor first scopes.
 - Build a **vertical slice** (one polished minute of real gameplay) before ANY content breadth.
 - Cut features, not quality. The feature that defines your game gets 80% of the time; everything else ships minimal or dies. Placeholder art until the design is proven.
 

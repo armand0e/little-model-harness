@@ -1,10 +1,22 @@
 ---
 name: blender-modeling
 description: Use for Blender questions about modeling, topology, modifiers, materials/shading, UVs, rendering, and exporting to game engines or three.js. Covers the workflow, the shortcuts that matter, and the classic beginner traps.
-category: creative
-hint: Blender modeling, materials, rendering
 ---
+
 # Blender Modeling
+
+## Reliable workflow
+
+1. Confirm the Blender version and deliverable: render or real-time asset, dimensions, camera distance, deformation, texture budget, polygon/draw-call budget, and export target.
+2. Gather orthographic and perspective reference. Set units and block the full silhouette and proportions with primitives before topology or detail.
+3. Choose the representation deliberately: mesh, curve, geometry nodes, sculpt, modifier stack, texture, or instance. Keep a reversible source and duplicate before destructive operations.
+4. Refine only where silhouette, deformation, shading, or bake quality needs geometry. Maintain intentional edge flow and inspect normals, scale, and modifier order.
+5. Validate from delivery distance and under diagnostic lighting. Check manifoldness where required, UV distortion/density, material portability, transforms, origin, naming, and bounds.
+6. Export a small test early and round-trip it in the target engine or viewer; compare orientation, scale, materials, normals, textures, and animation before final delivery.
+
+Give version-aware commands and selection/mode context. A visually correct Blender viewport is not proof that the exported asset is correct.
+
+**Output:** State the target constraints, modeling sequence, destructive checkpoints, validation views, and export round-trip result.
 
 ## Orientation (the 20 shortcuts that are 90% of modeling)
 
@@ -34,7 +46,7 @@ Apply modifiers (`Ctrl+A` → or in the dropdown) only when you must (export, fu
 
 ## Topology rules (why models shade badly or animate badly)
 
-- **Quads** (4-sided faces) are the goal wherever the mesh deforms or gets subdivided; triangles okay on flat static areas; **n-gons** (5+) cause shading artifacts and subdivision pinching — trapped only on flat faces.
+- Prefer predictable quad flow where a mesh deforms or is subdivided. Triangles are normal in final real-time meshes, and n-gons can be acceptable on flat, non-deforming surfaces when triangulation and shading are controlled. Test the actual modifier, deformation, and export path rather than following a topology slogan blindly.
 - Even quad flow following the form's curvature; **edge loops encircle** joints (shoulder, elbow, knee, mouth, eyes) so deformation has hinges.
 - **Poles** (verts with 3 or 5+ edges) are unavoidable — steer them AWAY from deforming/curved areas.
 - Artifact diagnosis: weird shading streaks = n-gons/poles on a curve, or **flipped normals** (fix: select all, `Shift+N` recalculate outside), or doubled vertices (`M` → Merge by Distance — the classic fix for "black seams" and "subdivision looks crumpled").
@@ -51,16 +63,3 @@ Apply modifiers (`Ctrl+A` → or in the dropdown) only when you must (export, fu
 - **Cycles** = path-traced, realistic, slower (denoiser on). **Eevee** = rasterized, real-time, great for stylized/preview. Lighting beats materials: an HDRI environment (World → Environment Texture) + one key light outperforms hours of shader fiddling.
 - **Export to three.js/Godot: glTF 2.0 (.glb)**. Before exporting: apply scale/rotation, check +Y-up option (default handles it), pack or keep textures relative, name objects sensibly. Only Principled BSDF-based materials survive export — procedural node tricks must be BAKED to textures first.
 - Units: Blender unit = 1 meter by default; keep real-world scale (a door ≈ 2m) so physics and lighting behave everywhere downstream.
-
-## Scripting Blender headlessly (Blender 4/5 — IMPORTANT)
-Blender is usually at `C:\Program Files\Blender Foundation\Blender <ver>\blender.exe`. Find it with `run("Get-ChildItem 'C:\Program Files\Blender Foundation' -Filter blender.exe -Recurse | Select -First 1 -Expand FullName")` — a PowerShell parse error does NOT mean Blender is missing; invoke exes with spaces via `& 'C:\path\blender.exe' args`.
-
-Workflow: write a Python script, run `& '<blender.exe>' --background --python script.py`, READ the stderr, fix, rerun.
-
-API gotchas (Blender 4/5 renamed things — do not trust older snippets):
-- Modifiers belong to OBJECTS not meshes: `obj.modifiers.new("Name", 'SUBSURF')` (type is `SUBSURF`, not SUBDIVISION).
-- FPS: `scene.render.fps = 24` (not `scene.fps`).
-- Constraints use enum types: `obj.constraints.new('TRACK_TO')`.
-- Animation: use `obj.keyframe_insert(data_path="location", frame=n)` — do NOT touch `action.fcurves` / `adt.fcurves` (the slotted-action API replaced them in 5.x and is a trap).
-- Meshes: build with `mesh.from_pydata(verts, edges, faces)` then `mesh.update()`.
-- If an API call errors, `web_search` the current Blender API before guessing again.

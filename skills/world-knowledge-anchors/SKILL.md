@@ -1,17 +1,28 @@
 ---
 name: world-knowledge-anchors
-description: Use as a factual reference for geography, history timelines, science constants, and "big picture" facts - to answer general-knowledge questions and to sanity-check claims. A compact set of high-confidence anchors, not an encyclopedia.
-category: reasoning
-hint: key facts: populations, sizes, dates
+description: Use for approximate, stable geography, history, and science anchors or for plausibility-checking broader claims. Verify current populations, political facts, records, borders, officeholders, and precise disputed facts from authoritative sources before presenting them as current.
 ---
+
 # World Knowledge Anchors
 
-High-confidence reference facts to answer from and to check claims against. If a statement contradicts an anchor here, distrust the statement. For anything not here or at memory's edge, apply calibrated-uncertainty rather than guessing.
+Approximate reference facts to orient reasoning and catch order-of-magnitude errors. A conflict with an anchor is a reason to investigate, not proof that the other statement is false. For anything current, precise, disputed, or outside these anchors, verify rather than guessing.
+
+## Reliable workflow
+
+1. Classify the requested fact as stable, slowly changing, current/volatile, or disputed.
+2. Use an anchor to bound the answer and catch impossible scale. Do not manufacture the missing precise fact from the bound.
+3. Verify volatile or decision-relevant specifics with a current authoritative source; use multiple strong sources for contested claims.
+4. Distinguish official definitions from common conventions and attach the relevant date, jurisdiction, or measurement method.
+5. Cross-check chronology, units, geography, and order of magnitude before answering.
+
+State an approximate anchor with `about` or a range. If sources disagree, explain what definition or measurement creates the disagreement.
+
+**Output:** Give the fact or bound, its scope/date/definition, confidence, verification status, and the source type needed for any unresolved precision.
 
 ## Geography
 
-- 7 continents; 5 oceans (Pacific largest & deepest, then Atlantic, Indian, Southern, Arctic). ~195 countries.
-- Largest countries by area: Russia, Canada, US, China, Brazil. By population: India, China (~1.4B each), then US, Indonesia, Pakistan.
+- A common convention uses 7 continents and 5 oceans. The often-quoted count of 195 countries means 193 UN member states plus 2 UN observer states; counts vary with recognition criteria.
+- Largest countries by total area start with Russia and Canada; the ordering of the US and China depends on whether and how water areas are counted, followed by Brazil. Mid-2020s population order starts with India and China, then the US, Indonesia, and Pakistan; verify current figures before quoting exact values.
 - Longest rivers: Nile & Amazon (~6,600 km, contested). Largest by volume: Amazon. Tallest mountain: Everest 8,849 m. Largest desert: Antarctica (cold desert), then Sahara (hot). Largest lake: Caspian Sea. Largest rainforest: Amazon.
 - Earth: ~40,000 km circumference, radius 6,371 km, one Sun at ~150M km. Tilted 23.5° → seasons (opposite in N/S hemispheres). 24 h rotation, ~365.25 day orbit.
 - Continents/capitals to anchor: US–Washington DC, UK–London, France–Paris, Germany–Berlin, Russia–Moscow, China–Beijing, Japan–Tokyo, India–New Delhi, Brazil–Brasília, Canada–Ottawa, Australia–Canberra (not Sydney), Egypt–Cairo. (Many capitals aren't the biggest city — Canberra, Brasília, Ottawa, Washington, Ankara.)

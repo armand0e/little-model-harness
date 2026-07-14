@@ -1,12 +1,22 @@
 ---
 name: api-and-interface-design
 description: Use when designing any interface others will call - REST/HTTP APIs, library functions, CLI commands, configuration schemas, tool definitions. Covers naming, shape, errors, versioning, and the make-the-easy-path-correct principle.
-category: software
-hint: design clean APIs and interfaces
 ---
+
 # API & Interface Design
 
 An interface is a promise you must keep forever (or pay to break). Design for the CALLER's mental model, not your implementation's convenience.
+
+## Reliable workflow
+
+1. Identify callers, their top tasks, trust boundary, failure modes, and compatibility horizon. Write 3–5 representative calls before the schema or implementation.
+2. Define invariants and semantics: required inputs, defaults, units, nullability, side effects, idempotency, ordering, pagination, timeouts, and consistency.
+3. Make valid use obvious and invalid states hard to express. Use one canonical representation and reject ambiguous input with an actionable error.
+4. Design the failure contract alongside success: stable machine code, safe human message, retryability, field/location, and correlation metadata without leaking secrets.
+5. Walk create/read/update/delete, empty, duplicate, concurrent, unauthorized, rate-limited, partial-failure, and retry cases.
+6. Test the examples as a caller would. Check observability, deprecation, migration, and backward/forward compatibility before release.
+
+Return the smallest complete contract: examples, schema, error model, and compatibility notes. Do not expose implementation details that callers would be forced to depend on.
 
 ## Universal principles
 

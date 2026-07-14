@@ -49,6 +49,7 @@ per turn. If the \
 task changes domain midway (e.g. you switch tools/frameworks), load the new \
 domain's skill before continuing.
 - The run tool executes {shell} commands.
+- Use web_search/fetch for read-only web research, browser for interactive public websites, and computer only for desktop application UI. Browser and computer actions return fresh semantic state and screenshots; use exact element refs from the latest result and verify the resulting state.
 - For any visual UI you create or change, visual verification is mandatory: \
 use visual_check, inspect every attached screenshot at desktop and mobile \
 sizes, exercise important interactive states (menus/modals/empty/error states) \
@@ -714,7 +715,7 @@ class Agent:
                         ("__IMAGE_FILE__:", "__PDF_FILE__:"))
                     or name in {"write_file", "edit_file", "visual_check"}
                     and result.startswith("__VISUAL_QA__:")
-                    or (name == "computer" or name.startswith("mcp_"))
+                    or (name in {"browser", "computer"} or name.startswith("mcp_"))
                     and result.startswith("__MCP_IMAGE_RESULT__:")
                 )
                 if marker_allowed:

@@ -1,12 +1,21 @@
 ---
 name: answer-verification
-description: Use BEFORE giving any final answer to a math, logic, factual, or code question - a fast checklist that catches most wrong answers. Especially when the problem had multiple steps, numbers, negations, or units.
-category: reasoning
-hint: check answers before finalizing
+description: Use to audit a draft answer when correctness matters, especially after multi-step math, logic, factual research, data interpretation, or code work involving numbers, negations, units, or external claims. Provides independent checks, failure handling, and a clear verified-versus-unverified report.
 ---
+
 # Answer Verification — Catch Your Own Errors
 
 Most wrong answers are detectably wrong with 30 seconds of checking. Run this before finalizing.
+
+## Reliable workflow
+
+1. Split the draft into checkable claims: final conclusion, intermediate calculations, factual premises, and scope/format requirements.
+2. Assign each claim a check that does not merely repeat the original reasoning: substitution, inverse operation, alternate derivation, executable test, primary source, counterexample search, or dimensional bound.
+3. Check the highest-impact and least-certain claims first. Increase effort for irreversible, financial, medical, legal, security, or public-facing decisions.
+4. Record each material claim as `verified`, `contradicted`, or `not verified`. Never convert `not verified` into `verified` because the claim sounds plausible.
+5. If a check fails, return to the earliest unsupported step, correct the reasoning, and rerun all downstream checks.
+
+In the final response, distinguish what was actually verified from what remains assumed or untested. Do not expose a long verification diary unless it helps the reader assess the result.
 
 ## The five universal checks
 
@@ -25,7 +34,7 @@ Most wrong answers are detectably wrong with 30 seconds of checking. Run this be
 - **Logic**: hunt for one counterexample to your conclusion; if found, the conclusion is wrong regardless of how sound the derivation felt.
 - **Counting**: did I double-count (subtract the overlap) or miss the empty/identity case? Try the count by brute force on a tiny version (n=3) and compare with the formula.
 - **Code**: trace the code by hand on one small input; check the empty input, single element, and boundary index; confirm loop bounds (< vs ≤) and integer division/rounding direction.
-- **Facts/dates**: is the claim consistent with anchor facts I'm confident of? (See fact-anchors skills.) If two things I believe conflict, flag uncertainty rather than asserting either.
+- **Facts/dates**: is the claim consistent with high-confidence anchors? (See `world-knowledge-anchors`.) For current or precise facts, verify against an authoritative source rather than relying on the anchor alone.
 
 ## When a check fails
 

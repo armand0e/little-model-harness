@@ -21,15 +21,15 @@ if not re.fullmatch(r"\d+\.\d+\.\d+", APP_VERSION):
     raise SystemExit(f"LMH_VERSION must use X.Y.Z format (got {APP_VERSION!r})")
 
 datas = [
-    (os.path.join(ROOT, "web"), "web"),
     (os.path.join(ROOT, "skills"), "skills"),
+    (os.path.join(ROOT, "packaging", "littleharness.png"), "packaging"),
 ]
 computer_use_dir = os.path.join(ROOT, "build", "computer-use")
 if os.path.isdir(computer_use_dir):
     # Pinned native accessibility MCP + upstream MIT license/source manifest.
     datas.append((computer_use_dir, "computer-use"))
 binaries = []
-hiddenimports = ["multipart"]  # python-multipart (fastapi uploads)
+hiddenimports = ["multipart"]  # server-only compatibility mode
 
 is_windows = sys.platform == "win32"
 is_macos = sys.platform == "darwin"
@@ -37,11 +37,12 @@ ICON = (os.path.join(SPECPATH, "littleharness.ico") if is_windows
         else os.path.join(SPECPATH, "littleharness.icns") if is_macos
         else None)
 
-# webview = the native app window (WebView2 on Windows, Qt/GTK on Linux,
-# Cocoa on macOS). The rest are libraries used only by skill helper
-# scripts (run via `--runpy`), so static analysis of run_app.py never
-# sees them — bundle them explicitly.
-collect_pkgs = ["webview", "docx", "openpyxl", "pptx", "pypdf", "fitz",
+# PyInstaller's Qt hook follows the statically imported PySide6 modules and
+# their required plugins. Collecting all of PySide6 would also pull unused
+# modules such as WebEngine into this deliberately non-webview application.
+# The remaining libraries are used by skill helper scripts (run via
+# `--runpy`), so bundle those explicitly.
+collect_pkgs = ["docx", "openpyxl", "pptx", "pypdf", "fitz",
                 "PIL", "pyautogui", "pygetwindow", "playwright", "mcp"]
 if is_macos:
     # pyobjc frameworks the computer skill's permission preflight and
@@ -80,7 +81,7 @@ exe = EXE(
     bootloader_ignore_signals=False,
     strip=False,
     upx=False,
-    console=False,          # windowed: the native webview window is the app
+    console=False,          # windowed: the native Qt window is the app
     disable_windowed_traceback=False,
     icon=ICON,
 )
@@ -123,7 +124,7 @@ if is_macos:
             "CFBundleVersion": APP_VERSION,
             "NSHighResolutionCapable": True,
             "LSMinimumSystemVersion": "12.0",
-            # the app talks to the local model server over http
+            # the app talks to an OpenAI-compatible model server over http
             "NSAppTransportSecurity": {"NSAllowsLocalNetworking": True},
             # the computer skill drives apps via System Events (Automation
             # permission); this string appears in that consent prompt

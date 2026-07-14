@@ -1,19 +1,21 @@
 ---
 name: deductive-logic
 description: Use when a question requires drawing conclusions from stated premises, judging whether an argument is valid, handling if/then statements, syllogisms, or "all/some/none" claims. Provides valid inference rules, the invalid forms that trap most reasoners, and a checkable procedure.
-category: reasoning
-hint: syllogisms, implication, valid inference
 ---
+
 # Deductive Logic
 
 Deduction: if the premises are true and the form is valid, the conclusion MUST be true. Validity is about form, not whether the content sounds plausible.
 
-## Procedure
+## Reliable workflow
 
 1. Rewrite each premise in standard form ("If P then Q", "All A are B", "Some A are B", "No A are B").
-2. Label the parts (P, Q, A, B). Work with the labels, not the story.
-3. Match the argument to a rule below. If it matches a VALID form, the conclusion follows. If it matches an INVALID form, say so — even if the conclusion happens to sound true.
-4. If no rule matches, try to build a counterexample: a situation where all premises are true but the conclusion is false. If you can build one, the argument is invalid.
+2. State hidden assumptions separately; do not smuggle ordinary world knowledge into a premise-bound problem.
+3. Label the parts (P, Q, A, B) and derive one justified step per line. Cite the rule used for each non-obvious step.
+4. Test the proposed conclusion and its negation. If a model makes all premises true and the conclusion false, the conclusion does not follow.
+5. Return exactly one status: `follows`, `contradicted`, or `undetermined`. `Undetermined` means at least one premise-consistent model makes it true and another makes it false.
+
+Do not confuse a valid argument with a sound one: validity concerns form; soundness also requires true premises.
 
 ## Valid inference rules
 

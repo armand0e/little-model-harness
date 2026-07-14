@@ -59,6 +59,11 @@ jobs:
         shell: pwsh
         run: |
           $env:LMH_DATA_DIR = Join-Path $env:RUNNER_TEMP "LittleHarness-smoke"
+          $env:QT_QPA_PLATFORM = "offscreen"
+          & "dist\LittleHarness\LittleHarnessCLI.exe" --native-smoke
+          if ($LASTEXITCODE -ne 0) {
+            throw "Packaged native Qt smoke test failed ($LASTEXITCODE)"
+          }
           $process = Start-Process `
             -FilePath "dist\LittleHarness\LittleHarnessCLI.exe" `
             -ArgumentList "--server-only" -PassThru -NoNewWindow
@@ -115,6 +120,9 @@ jobs:
           test -x dist/LittleHarness-x86_64.AppImage
           dist/LittleHarness-x86_64.AppImage --appimage-version
           export LMH_DATA_DIR="$RUNNER_TEMP/LittleHarness-smoke"
+          export QT_QPA_PLATFORM=offscreen
+          dist/LittleHarness-x86_64.AppImage --appimage-extract-and-run \
+            --native-smoke
           dist/LittleHarness-x86_64.AppImage --appimage-extract-and-run \
             --server-only >"$RUNNER_TEMP/lmh-appimage.log" 2>&1 &
           pid=$!
@@ -178,6 +186,9 @@ jobs:
         run: |
           set -euo pipefail
           app="dist/Little Harness.app"
+          export LMH_DATA_DIR="$RUNNER_TEMP/LittleHarness-smoke"
+          export QT_QPA_PLATFORM=offscreen
+          "$app/Contents/MacOS/LittleHarnessCLI" --native-smoke
           codesign --verify --deep --strict --verbose=2 "$app"
           test "$(lipo -archs "$app/Contents/MacOS/LittleHarness")" = "${{ matrix.arch }}"
           hdiutil verify dist/LittleHarness.dmg

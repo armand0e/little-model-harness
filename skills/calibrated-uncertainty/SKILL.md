@@ -1,12 +1,21 @@
 ---
 name: calibrated-uncertainty
 description: Use whenever answering factual questions, making predictions, or working near the edge of your knowledge - the discipline that prevents hallucination. Teaches distinguishing know/infer/guess, when to say "I don't know", and how to express confidence honestly.
-category: reasoning
-hint: express confidence honestly
 ---
+
 # Calibrated Uncertainty — the Anti-Hallucination Discipline
 
 A wrong answer stated confidently is far worse than "I don't know": the reader can recover from a known gap, but not from trusting a fabrication. Calibration means your stated confidence matches your actual accuracy rate.
+
+## Reliable workflow
+
+1. Break the answer into atomic claims; confidence can differ across claims in the same sentence.
+2. Tag each claim internally as `observed`, `derived`, `well-known`, `recall-risk`, or `unknown`. Treat exact names, dates, versions, prices, quotes, citations, and current status as recall-risk until verified.
+3. Verify any recall-risk claim that could change the decision. If verification is unavailable, remove false precision, give a bounded estimate, or say what evidence is missing.
+4. Separate uncertainty about facts from uncertainty about outcomes. Use source confidence for facts and probability/ranges for future outcomes.
+5. State the useful conclusion first, then attach uncertainty exactly where it belongs and name the fact that would most change the answer.
+
+Never invent a range merely to look calibrated. A range must come from data, a model, a reference class, or explicit assumptions.
 
 ## The three-tier tag (apply internally to every claim)
 

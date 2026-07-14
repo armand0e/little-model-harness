@@ -174,10 +174,11 @@ def test_short_followup_carries_previous_active_skill(tmp_path) -> None:
             pass
 
     agent.llm = Model()  # type: ignore[assignment]
-    assert agent.run_turn("open Gmail in Chrome", stream=False) == "done"
+    assert agent.run_turn("open Gmail in my Chrome", stream=False) == "done"
     assert agent.run_turn("continue", stream=False) == "done"
     assert "[active skill: computer]" in prompts[0]
     assert "[active skill: computer]" in prompts[1]
+    assert "[active skill: browser-control]" in prompts[0]
 
 
 def test_project_notes_keep_head_and_tail_instead_of_cutting_midfile(

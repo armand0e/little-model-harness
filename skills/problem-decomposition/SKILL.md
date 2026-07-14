@@ -1,12 +1,33 @@
 ---
 name: problem-decomposition
 description: Use at the START of any hard, multi-step, or vague problem - math word problems, planning tasks, debugging, essays, anything that can't be answered in one step. Provides the restate-plan-execute-verify loop that prevents rushed wrong answers.
-category: reasoning
-hint: break big problems into tractable steps
 ---
+
 # Problem Decomposition — the Universal Loop
 
 Hard problems fail when attacked whole. The loop: **Restate → Inventory → Plan → Execute stepwise → Verify → Answer.** Skipping straight to an answer is the #1 cause of errors.
+
+## Reliable workflow
+
+Maintain a compact work state:
+
+```text
+Goal:
+Deliverable and constraints:
+Known / observed:
+Unknown / assumed:
+Plan:
+Checks:
+```
+
+Break the task into chunks that each produce a checkable artifact or decision. Complete and verify one dependency before using it downstream. If two attempts fail for the same reason, change the representation, isolate a smaller case, or seek missing evidence instead of repeating the attempt. Keep the internal plan detailed enough to prevent omissions, but return only the reasoning needed to make the result understandable and auditable.
+
+1. Fill the work state from the request and available evidence.
+2. Order chunks by dependency and risk; mark the next concrete action.
+3. Execute and verify each chunk before consuming its result downstream.
+4. Reconcile the final artifact with every deliverable and constraint.
+
+**Output:** Lead with the completed result, then the minimum evidence, assumptions, and unresolved blocker needed to use it.
 
 ## 1. Restate
 

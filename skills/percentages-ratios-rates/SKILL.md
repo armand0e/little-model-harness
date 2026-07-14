@@ -1,10 +1,21 @@
 ---
 name: percentages-ratios-rates
 description: Use for percentages, discounts, tax, tips, interest, growth rates, ratios, proportions, mixture problems, speed/distance/time, and per-unit rates. These are the most common everyday math errors; this skill provides the safe procedures.
-category: math
-hint: percent change, ratios, rates
 ---
+
 # Percentages, Ratios & Rates
+
+## Reliable workflow
+
+1. Label every quantity with its role and unit: `part`, `whole/base`, `percent or rate`, and `time period`.
+2. Write one relationship before inserting numbers. Use `part = rate × base`, `new = old × change factor`, `distance = speed × time`, or `work = rate × time`.
+3. Convert percent to a decimal factor and all units to a consistent system. Keep sequential changes as separate multiplicative factors.
+4. Solve symbolically, then substitute numbers. Do not cross-multiply until the proportional relationship has been justified.
+5. Reverse the calculation and check bounds: shares sum to the whole, mixtures lie between inputs, and average rates use total amount divided by total time.
+
+State which quantity is the percentage base. If the word `average` is ambiguous, identify whether observations, time, distance, or group sizes provide the weights.
+
+**Output:** Show the labeled relationship, consistent units, substitution, result, and one reverse or bounds check.
 
 ## Percentages — the three question types
 

@@ -19,6 +19,46 @@ CATEGORY_ORDER = ["office", "software", "writing", "reasoning", "math",
                   "science", "creative", "other"]
 MAX_SKILL_FILE_BYTES = 25_000
 
+# Portable Codex-style SKILL.md frontmatter contains only name/description.
+# Product-specific grouping therefore belongs in the catalog, not the files.
+CATEGORY_SKILLS: dict[str, set[str]] = {
+    "office": {
+        "browser-control", "computer", "documents", "presentations",
+        "research", "spreadsheets",
+    },
+    "software": {
+        "api-and-interface-design", "code-writing-discipline", "coding",
+        "debugging-method", "godot-essentials", "javascript-game-dev",
+        "software-design-taste", "system-design-basics", "terminal-workflows",
+    },
+    "writing": {
+        "clear-writing", "communication-style", "explaining-concepts",
+        "negotiation-and-persuasion", "reading-comprehension",
+    },
+    "reasoning": {
+        "answer-verification", "calibrated-uncertainty", "causal-reasoning",
+        "cognitive-biases", "decision-analysis", "deductive-logic",
+        "ethical-reasoning", "inference-types", "logic-puzzles",
+        "logical-fallacies", "problem-decomposition", "temporal-reasoning",
+        "thinking-method", "world-knowledge-anchors",
+    },
+    "math": {
+        "algebra-word-problems", "combinatorics-and-counting",
+        "estimation-anchors", "fermi-estimation", "geometry-essentials",
+        "mental-math", "percentages-ratios-rates", "probabilistic-reasoning",
+        "statistics-interpretation", "unit-conversion",
+    },
+    "science": {
+        "biology-essentials", "chemistry-essentials", "physics-intuition",
+        "scientific-method",
+    },
+    "creative": {
+        "animation-principles", "blender-animation-rigging",
+        "blender-modeling", "game-design-fundamentals", "threejs-essentials",
+        "ui-ux-design",
+    },
+}
+
 # Local models are inconsistent at voluntarily selecting a skill from a long
 # tool/index list. These conservative routes preload only strongly indicated
 # skills; the model can still call ``skill`` for anything else mid-turn.
@@ -28,8 +68,15 @@ SKILL_ROUTES: dict[str, tuple[str, ...]] = {
     "presentations": (r"\b(pptx|powerpoint|slide deck|presentation)\b",),
     "computer": (
         r"\b(keyboard|mouse|desktop app|control (?:an? )?app|click on (?:the )?screen|type into|take (?:a )?screenshot|screen capture)\b",
-        r"\b(open|use|navigate|browse|read|summarize).{0,40}\b(chrome|browser|gmail)\b",
-        r"\b(chrome|browser|gmail).{0,40}\b(open|click|navigate|read|summarize)\b",
+        r"\bfrom chrome\b|\b(?:existing|signed[- ]in|my).{0,20}\b(?:chrome|browser)\b",
+    ),
+    "browser-control": (
+        r"\b(open|use|navigate|browse|click|type|log ?in|sign ?in|submit).{0,80}\b(browser|website|web ?app|gmail|chrome|page)\b",
+        r"\b(browser|website|web ?app|gmail|page).{0,80}\b(open|click|navigate|type|read|summarize|submit)\b",
+    ),
+    "terminal-workflows": (
+        r"\b(terminal|shell|powershell|bash|command line|cli)\b",
+        r"\b(run|execute).{0,25}\b(command|tests?|build|script|npm|pip|git)\b",
     ),
     "research": (r"\b(research|sources?|citations?|look up|latest|current (?:news|price|version|information|events))\b",),
     "threejs-essentials": (r"\b(three\.?js|threejs|webgl|3d scene|3d model)\b",),
@@ -62,6 +109,24 @@ class Skill:
     hint: str = ""
 
 
+def _compact_hint(description: str) -> str:
+    source = re.sub(
+        r"^use\s+(?:whenever|when|for|at|as|to)\s+", "", description,
+        flags=re.IGNORECASE)
+    chosen: list[str] = []
+    for word in source.split():
+        candidate = " ".join([*chosen, word])
+        if len(chosen) >= 8 or len(candidate) > 64:
+            break
+        chosen.append(word)
+    return " ".join(chosen) or description[:80].rstrip()
+
+
+def _inferred_category(name: str) -> str:
+    return next((category for category, names in CATEGORY_SKILLS.items()
+                 if name in names), "other")
+
+
 def _parse_skill_md(path: Path) -> Skill | None:
     try:
         if path.stat().st_size > MAX_SKILL_FILE_BYTES:
@@ -82,8 +147,8 @@ def _parse_skill_md(path: Path) -> Skill | None:
     if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,59}", name):
         return None
     desc = " ".join(fields.get("description", "").split())[:500]
-    hint = " ".join((fields.get("hint") or desc).split()[:10])[:80]
-    category = fields.get("category", "other")
+    hint = _compact_hint(fields.get("hint") or desc)
+    category = fields.get("category") or _inferred_category(name)
     if category not in CATEGORY_ORDER:
         category = "other"
     return Skill(name=name, description=desc, body=body, dir=path.parent,

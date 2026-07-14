@@ -1,12 +1,21 @@
 ---
 name: logic-puzzles
 description: Use for constraint puzzles - knights and knaves, truth-tellers and liars, grid/zebra puzzles ("who owns the fish"), seating arrangements, river crossings, weighing/balance puzzles, and lateral logic riddles. Provides systematic methods that avoid guesswork.
-category: reasoning
-hint: grid, knights-and-knaves, constraint puzzles
 ---
+
 # Logic Puzzle Methods
 
 Never solve by intuition or by "trying an answer that feels right." Every puzzle type below has a mechanical method. Write down state; do not hold it in your head.
+
+## Reliable workflow
+
+1. Define variables and their possible values. Number every clue and translate each into an explicit constraint.
+2. Propagate forced consequences before guessing. Keep candidate sets visible; after fixing a value, remove it everywhere the puzzle requires uniqueness.
+3. When stuck, branch on the variable with the fewest remaining values. Copy the state, assume one value, and stop the branch immediately on contradiction.
+4. Preserve every surviving solution if uniqueness has not been established. One valid assignment proves possibility, not necessity.
+5. Verify the final assignment against every numbered clue and search for a second solution when the question asks what `must` be true.
+
+Return the answer plus a compact proof: forced deductions, any case split, and the uniqueness result. If multiple solutions survive, answer `cannot be determined` and show two witnesses.
 
 ## Knights and knaves (truth-tellers and liars)
 

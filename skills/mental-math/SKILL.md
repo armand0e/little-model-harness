@@ -1,12 +1,21 @@
 ---
 name: mental-math
-description: Use for any arithmetic - multiplication, division, squares, quick estimation, divisibility - especially multi-digit calculations where errors creep in. Provides decomposition tricks and verification via digit checks.
-category: math
-hint: reliable arithmetic tricks and verification
+description: Use for manual arithmetic, quick estimation, divisibility, squares, and transparent multi-digit calculation when a calculator is unavailable or a plausibility check is needed. Provides decomposition methods and independent digit, inverse, and magnitude checks.
 ---
+
 # Mental Math — Reliable Arithmetic
 
 Rule zero: **never do a multi-digit operation in one leap.** Decompose, write intermediates, verify.
+
+## Reliable workflow
+
+1. Estimate the sign, digit count, and first significant digit before exact arithmetic.
+2. Choose a decomposition that keeps intermediates simple. Write one operation per line and keep place value visible.
+3. Compute without rounding unless the task asks for an estimate. For decimals, track the scale separately from integer arithmetic.
+4. Verify by an independent route: inverse operation, alternate decomposition, last digit, parity, casting out nines, or a calculator/tool when exactness matters.
+5. Compare with the initial estimate and report a sensible number of significant digits.
+
+For financial, scientific, safety-critical, or long calculations, use mental math as a cross-check—not the sole computation method.
 
 ## Addition / subtraction
 

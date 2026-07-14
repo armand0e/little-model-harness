@@ -1,8 +1,6 @@
 ---
 name: computer
 description: Control the computer — open apps, manage windows, type, click, take screenshots
-category: office
-hint: control apps, windows, keyboard, mouse, screenshots
 ---
 Use the first-class `computer` tool. Packaged builds attach a pinned native MCP
 backend for the running OS: Windows UI Automation, macOS Accessibility, or

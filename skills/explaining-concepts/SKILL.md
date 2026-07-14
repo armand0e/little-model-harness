@@ -1,20 +1,24 @@
 ---
 name: explaining-concepts
 description: Use when teaching, explaining a concept, writing documentation or tutorials, answering "how does X work?" or "explain like I'm five", or making a technical idea land for a non-expert. Provides the concrete-first method and audience calibration.
-category: writing
-hint: teach ideas clearly at any level
 ---
+
 # Explaining Concepts
 
 An explanation succeeds when the listener can USE the idea — predict with it, apply it, spot it — not when the explainer has said true things.
 
-## The structure that works
+## Reliable workflow
 
-1. **One-sentence core**: the idea compressed to its essence, in words the audience already knows. ("Inflation: money buys less over time because prices rise.")
-2. **Concrete example FIRST**: a specific, familiar scenario showing the idea in action. Concrete-then-abstract beats abstract-then-concrete for almost every learner.
-3. **The mechanism**: WHY it works, one causal chain, no branches on the first pass.
-4. **A boundary**: where it does NOT apply, or the nearest wrong idea it should not be confused with. ("Inflation is a rise in the general price level — one product getting pricier isn't inflation.")
-5. **A check**: a tiny question or application letting the learner test themselves.
+1. Identify the audience's starting point and the behavior the explanation should enable: recognize, predict, calculate, build, or decide.
+2. Give a one-sentence core in known vocabulary, then one concrete example whose details map directly to the concept.
+3. Explain one causal or logical chain at a time. Make every link explicit; introduce at most a few new terms per layer.
+4. Show a contrasting non-example or boundary so the learner does not overgeneralize.
+5. Check transfer: ask the learner to predict a new case, paraphrase the idea, or solve one tiny problem. Use the result to repair the explanation if interaction is available.
+6. Offer deeper formalism only after the operational model is correct.
+
+Never trade correctness for simplicity. Label a simplified model, state where it breaks, and avoid analogies that support a false inference.
+
+**Output:** Give the core sentence, concrete example, mechanism, boundary/non-example, and one transfer check at the requested depth.
 
 ## Calibrating to the audience
 

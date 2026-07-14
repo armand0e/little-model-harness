@@ -1,10 +1,21 @@
 ---
 name: unit-conversion
 description: Use whenever quantities carry units - conversions (metric/imperial, time, temperature, currency-style rates), checking a formula's plausibility, or any physics/chemistry/cooking/travel calculation. Dimensional analysis catches wrong setups automatically.
-category: math
-hint: convert units without mistakes
 ---
+
 # Units & Dimensional Analysis
+
+## Reliable workflow
+
+1. Write the starting quantity and target unit explicitly. Identify whether the quantity is a value, difference, rate, area, volume, or compound unit.
+2. Use authoritative or exact conversion factors when precision matters; mark approximations and currency/time-dependent rates with their date or source.
+3. Multiply by factor-label fractions so every unwanted unit cancels on paper. Square or cube the entire length factor for area or volume.
+4. Calculate without premature rounding, then round to the precision justified by the inputs.
+5. Verify by reversing the conversion and checking order of magnitude, dimensions, and physical plausibility.
+
+Do not convert between different physical dimensions without an additional physical relationship. Mass and volume, for example, require density; energy and power require time.
+
+**Output:** Show the original value, complete factor-label chain, canceled units, unrounded result, rounded result, and reverse/magnitude check.
 
 ## The factor-label method (always works)
 

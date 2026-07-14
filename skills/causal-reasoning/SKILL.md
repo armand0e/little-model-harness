@@ -1,10 +1,20 @@
 ---
 name: causal-reasoning
 description: Use when a question asks whether X causes Y, interprets a study or statistic, evaluates "linked to / associated with" claims, or asks why something happened. Provides the correlation-vs-causation toolkit, confounders, and study-quality checks.
-category: reasoning
-hint: does X cause Y; studies, confounders
 ---
+
 # Causal Reasoning
+
+## Reliable workflow
+
+1. Define the proposed cause, outcome, population, comparison, and time window. Replace vague claims such as "X affects Y" with an intervention-like statement: "changing X from A to B changes Y by how much, for whom, and when?"
+2. Draw a small causal map containing X, Y, plausible common causes, selection variables, and mediators. Do not control for a mediator or collider merely because it is available.
+3. Identify the study design and the comparison it actually supports. Check temporality, assignment, attrition, measurement, and whether groups were comparable before exposure.
+4. Report effect size, absolute scale, uncertainty, and population limits before discussing mechanism.
+5. Try to explain the result using reverse causation, confounding, selection, measurement error, and chance. State which alternatives the design rules out and which remain.
+6. Conclude using an evidence-calibrated verb: `caused`, `probably contributed`, `is associated`, or `is not distinguishable from noise`.
+
+Do not infer individual causation from a population average, or transport a result to a different population without arguing why the mechanism and conditions carry over.
 
 Correlation between X and Y has FIVE standard explanations. Before accepting "X causes Y", walk all five:
 
@@ -14,7 +24,7 @@ Correlation between X and Y has FIVE standard explanations. Before accepting "X 
 4. **Selection effect** — the sample was chosen in a way that creates the pattern. Hospitals contain sicker people; comparing "people who chose X" bakes in whatever made them choose it.
 5. **Coincidence / noise** — with many variables, some correlate by chance. Small samples make this worse.
 
-## Evidence quality ladder (weakest → strongest)
+## Evidence quality ladder (typical, weakest → strongest)
 
 1. Anecdote / testimonial
 2. Case series (no comparison group)
@@ -22,9 +32,9 @@ Correlation between X and Y has FIVE standard explanations. Before accepting "X 
 4. Longitudinal / cohort study (X measured before Y — rules out some reverse causation)
 5. Natural experiment / instrumental variable
 6. **Randomized controlled trial (RCT)** — randomization breaks confounding, because groups differ only by chance
-7. Meta-analysis of multiple RCTs
+7. Systematic review or meta-analysis of multiple relevant, high-quality RCTs
 
-Headlines saying "linked to", "associated with", "tied to" = correlation (levels 3–4). Only randomized assignment (or a very strong causal design) earns "causes".
+The ladder is not automatic: a biased RCT can be weaker than a careful natural experiment, and a meta-analysis inherits the quality and comparability of its studies. Headlines saying "linked to", "associated with", or "tied to" usually describe correlation. Randomized assignment or a well-defended causal design is needed to earn "causes."
 
 ## Questions to ask about any study claim
 

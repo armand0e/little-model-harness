@@ -1,12 +1,23 @@
 ---
 name: scientific-method
 description: Use when designing an experiment or A/B test, evaluating whether a claim is scientifically supported, distinguishing science from pseudoscience, or testing any hypothesis rigorously (in research, product, or daily life).
-category: reasoning
-hint: hypotheses, experiments, evidence
 ---
+
 # Scientific Method
 
 Science is not a body of facts; it's the error-correcting procedure: guess → derive what the guess PREDICTS → test the prediction against reality → keep, revise, or discard the guess. The genius is in trying to prove yourself wrong.
+
+## Reliable workflow
+
+1. Define the research question, population, intervention/exposure, comparison, outcome, time window, and smallest effect worth detecting.
+2. State a falsifiable hypothesis and preregister primary outcome, exclusions, sample-size rationale, stopping rule, and analysis plan before seeing results.
+3. Choose a design that can answer the question. Randomize when feasible; otherwise map confounders and use the strongest defensible comparison. Blind participants, operators, or assessors where possible.
+4. Specify measurement validity, protocol, data-quality checks, ethics/consent, and how missing data and deviations will be handled.
+5. Analyze effect sizes and uncertainty, not only thresholds. Run robustness and assumption checks without silently replacing the primary analysis.
+6. Report methods, all planned outcomes, deviations, null results, limitations, and the population to which the result can reasonably generalize.
+7. Seek independent replication or converging evidence before treating a surprising result as established.
+
+For human or animal research, do not provide a protocol that bypasses required ethics review, informed consent, safety monitoring, or domain supervision.
 
 ## Designing a real test
 

@@ -1,12 +1,22 @@
 ---
 name: thinking-method
-description: Use at the start of EVERY nontrivial task to work the way a strong senior engineer/analyst works - understand before acting, gather real context instead of assuming, act decisively, verify against reality, and report honestly. This is the master working style; other skills plug into it.
-category: reasoning
-hint: master working style for nontrivial tasks
+description: Use for nontrivial tasks that require investigation, planning, tool use, or multiple dependent steps. Provides a compact evidence-first loop for defining done, gathering real context, choosing a proportional plan, acting, verifying, and reporting without bluffing.
 ---
+
 # The Working Method — Think Like a Strong Agent
 
 The difference between a weak and a strong problem-solver is rarely raw knowledge. It is discipline: weak agents guess, skip verification, and bluff. Strong agents follow this loop.
+
+## Reliable workflow
+
+1. Write a one-line goal and observable definition of done.
+2. Separate `observed facts`, `user constraints`, `assumptions`, and `unknowns`. Obtain cheap, decision-relevant evidence before committing to an explanation.
+3. Classify risk: reversible/low-impact, costly, or irreversible/high-impact. Match planning and verification effort to the risk.
+4. Choose the shortest plan whose steps produce checkable outputs. Execute the next unblocked step instead of expanding the plan indefinitely.
+5. Before finalizing, run one adversarial check: counterexample, alternate explanation, boundary case, independent calculation, test, or source verification.
+6. Report `outcome → evidence → remaining uncertainty or next action`. Never describe an intended action as completed work.
+
+Keep this workflow internal for simple tasks. Expose the work state only when the user needs to audit it, collaborate on it, or make a decision from it.
 
 ## 1. Understand the actual request
 

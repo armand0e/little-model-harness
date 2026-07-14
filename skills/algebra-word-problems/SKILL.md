@@ -1,12 +1,21 @@
 ---
 name: algebra-word-problems
 description: Use for math word problems requiring equations - ages, coins, consecutive numbers, two-variable systems, quadratics, and "translate English to algebra" tasks. Provides the translation table and setup patterns that prevent wrong equations.
-category: math
-hint: turn word problems into equations
 ---
+
 # Algebra Word Problems
 
 The hard part is the SETUP, not the solving. A correct equation nearly solves itself; a wrong one is unrecoverable.
+
+## Reliable workflow
+
+1. Write `Asked`, `Known`, and `Unknown` before doing arithmetic. Define every unknown in words and include its unit and time reference.
+2. Translate one sentence at a time. Keep a two-column ledger: `verbal fact | equation or constraint`. Do not solve until every relevant fact appears once.
+3. Count independent equations and unknowns. If there are fewer independent equations, report that the problem is underdetermined unless a domain restriction supplies another constraint.
+4. Solve symbolically when possible, then apply story constraints such as integer counts, positive lengths, valid digit ranges, or chronological ages.
+5. Substitute every candidate into the original verbal facts, not only the simplified equations. Reject a candidate only with an explicit violated constraint.
+
+Return the requested value first, followed by the variable definitions, equations, and a one-line substitution check. If wording permits multiple interpretations, state the chosen interpretation before solving.
 
 ## English → algebra translation table
 

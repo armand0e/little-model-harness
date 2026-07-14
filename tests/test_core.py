@@ -495,7 +495,7 @@ def test_skill_router_preloads_relevant_instructions_each_turn(tmp_path: Path):
         "debugging-method", "software-design-taste", "coding"]
     assert manager.recommend(
         "open my email and summarize the top 10 emails using Gmail from Chrome") == [
-            "computer", "clear-writing"]
+            "computer", "browser-control", "clear-writing"]
     assert manager.recommend("just say hello") == []
 
     agent = Agent(Config(), workspace=tmp_path)

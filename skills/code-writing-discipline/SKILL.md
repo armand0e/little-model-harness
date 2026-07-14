@@ -1,17 +1,26 @@
 ---
 name: code-writing-discipline
-description: Use whenever writing or editing code - the working discipline for producing correct, reviewable changes: read before writing, minimal diffs, edge-case habits, testing, and honest reporting of what was and wasn't verified.
-category: software
-hint: habits for writing correct clean code
+description: Use whenever writing or editing code to produce correct, reviewable changes through read-before-write context gathering, minimal diffs, edge-case discipline, testing, and honest reporting of what was and was not verified.
 ---
+
 # Code Writing Discipline
 
 How to produce code the way a careful senior engineer does. This is about the PROCESS of a change; see software-design-taste for structure and naming.
 
+## Reliable workflow
+
+1. Convert the request into acceptance criteria and explicit non-goals. Record current behavior for bugs or behavior-preserving refactors.
+2. Read the target, callers, tests, configuration, and local conventions. Identify the narrowest owner of the behavior.
+3. Make the smallest coherent change. Preserve unrelated user changes and avoid formatting or refactoring outside the goal.
+4. Add or update the smallest test that fails before the change and passes after it. Cover the relevant boundary and failure path, not an arbitrary list of edges.
+5. Run focused checks first, then broader tests, static checks, build, or integration checks in proportion to blast radius.
+6. Review the final diff for accidental behavior, debug artifacts, secrets, generated files, and unmet acceptance criteria.
+7. Report what changed and the exact verification performed. Label any unexecuted or environment-dependent path as unverified.
+
 ## Before writing
 
 - **Read the surrounding code first.** The function you're changing, its callers, the module's existing helpers and idioms. Half of all bad patches solve a problem the codebase already has a utility for, or violate a convention every other file follows.
-- Reproduce/confirm the current behavior if fixing a bug (see debugging-method). Never fix a bug you haven't seen happen.
+- Reproduce or capture concrete evidence of the current behavior when fixing a bug (see debugging-method). If reproduction is impossible, state the evidence and design a verification that can distinguish a real fix from a guess.
 - Find the right LOCATION for the change: the cause, not the symptom site; the shared helper, not all five call sites.
 
 ## While writing

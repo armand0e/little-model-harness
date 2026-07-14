@@ -1,29 +1,31 @@
 ---
 name: decision-analysis
 description: Use when choosing between options, advising on a decision, weighing tradeoffs, prioritizing, or when the user asks "should I do X or Y?". Provides expected value thinking, reversibility framing, and the standard decision traps.
-category: reasoning
-hint: structure choices, weigh options
 ---
+
 # Decision Analysis
 
 A good decision is one that was smart GIVEN what was knowable at the time — outcomes involve luck. Judge (and make) decisions by process.
 
-## The core procedure
+## Reliable workflow
 
-1. **Frame**: what's actually being decided, by when, and what does success look like? Check the option list isn't artificially narrow — "X or Y?" often has better answers Z (do both partially, do neither, get more info first, renegotiate the constraint).
+1. **Frame**: state the decision owner, deadline, success measure, constraints, and options—including status quo, delay, pilot, and hybrid options. Do not silently optimize a proxy for the user's actual goal.
 2. **Stakes & reversibility triage** (decide how much to deliberate):
    - Reversible + low stakes → decide NOW with a coin-flip-quality heuristic; deliberation costs more than any error. Most decisions are this kind.
    - Reversible + high stakes → run a cheap experiment/pilot before committing.
    - Irreversible + high stakes → full analysis below, slow down, seek disconfirming views.
-3. **Criteria**: list what matters and roughly weight it. 3–5 criteria; more means you haven't decided what matters.
-4. **Evaluate**: score options against criteria. For uncertain outcomes, think expected value: EV = Σ p(outcome)·value(outcome) — see probabilistic-reasoning. For unquantifiable factors, still rank them; "can't quantify" doesn't mean "ignore."
-5. **Stress-test the leader** (see traps below), then decide, record WHY (one paragraph — future you will want it), and set a review trigger ("revisit if churn exceeds 5%").
+3. **Criteria**: list 3–5 decision-relevant criteria, define each, assign rough weights, and mark any hard constraint that cannot be traded away.
+4. **Evaluate uncertainty**: start from reference-class base rates, then adjust for case-specific evidence. Use ranges or scenarios instead of invented point estimates. Include downside severity, ruin risk, and opportunity cost—not only average value.
+5. **Value information**: ask whether one cheap test, quote, prototype, or conversation could change the ranking. Gather it only when its expected value exceeds delay and effort.
+6. **Stress-test and decide**: run a premortem and strongest-case-against pass. Give a recommendation, the deciding reason, the strongest objection, and a concrete review trigger.
+
+When preferences or weights belong to the user and are unknown, expose the crux instead of pretending the ranking is objective: "Choose A if speed matters more than lock-in; otherwise choose B."
 
 ## Key concepts
 
 - **Opportunity cost**: the true cost of X is the best alternative you give up. "Is this project good?" is the wrong question; "is it better than what else we'd do with the time/money?" is right.
 - **Sunk cost**: money/time already spent is GONE and irrelevant. Only future costs and benefits count. "We've invested so much" is a reason rooted in the past deciding the future — the classic error. Test: would you START this today, knowing what you know?
-- **Expected value with ruin awareness**: positive-EV bets are good ONLY if you survive the downside. A 90% chance to double the company + 10% chance of bankruptcy is usually a bad bet — you can't average over ruin. Kelly logic: bet fractions, never everything.
+- **Expected value with ruin awareness**: positive expected value is not sufficient when a downside violates a hard survival, liquidity, legal, or ethical constraint. Account for risk tolerance and utility; Kelly-style sizing applies only under its assumptions and usually argues for fractional exposure, not an all-in bet.
 - **Diminishing returns / marginal thinking**: decide at the margin. The 10th hour of polishing buys less than the 1st hour of the next task.
 - **Optionality has value**: an option that keeps future choices open is worth more than its immediate EV suggests; a lock-in deserves a discount.
 - **Satisfice on most things**: for low-stakes choices, take the first option that clears the bar. Maximizing everywhere is a tax on your life.

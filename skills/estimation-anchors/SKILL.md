@@ -1,12 +1,23 @@
 ---
 name: estimation-anchors
-description: Companion quick-reference of memorized numbers for estimation and plausibility-checking - populations, sizes, speeds, money, data, biology. Use alongside fermi-estimation whenever a calculation or claim needs a real-world anchor number.
-category: reasoning
-hint: reference quantities for sanity checks
+description: Use as an approximate reference for Fermi estimation and plausibility checks involving population, scale, speed, money, data, energy, or biology. Treat demographic, economic, price, and technology figures as dated anchors to verify when current precision matters.
 ---
+
 # Estimation Anchors (Number Reference)
 
 Memorized quantities for Fermi estimates (see fermi-estimation for the method) and for catching absurd numbers. All approximate, mid-2020s.
+
+## Reliable workflow
+
+1. Identify the target's unit, geography, population, and date before selecting an anchor.
+2. Choose the nearest 1–3 anchors and write the scaling relationship explicitly; do not substitute an anchor for a missing causal model.
+3. Use one significant figure by default and widen the range for heterogeneous or fast-changing quantities.
+4. Cross-check with a second anchor or conservation/capacity bound.
+5. Verify current, local, financial, legal, demographic, or technology-specific values from an authoritative source when they affect a real decision.
+
+Label every result derived from this file as an estimate. These anchors detect impossible scale; they do not prove a surprising claim false by themselves.
+
+**Output:** Give the anchor, scaling relationship, central estimate, plausible range, date/scope, and whether a current source was checked.
 
 ## Powers of ten intuition
 

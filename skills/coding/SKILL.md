@@ -1,8 +1,6 @@
 ---
 name: coding
 description: Write, edit, debug, or explain code in an existing or new project
-category: software
-hint: write, edit, debug code in projects
 ---
 You are now acting as a careful coding agent.
 

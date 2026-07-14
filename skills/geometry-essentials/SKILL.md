@@ -1,12 +1,21 @@
 ---
 name: geometry-essentials
 description: Use for geometry questions - areas, perimeters, volumes, angles, triangles, circles, the Pythagorean theorem, similar shapes, and coordinate geometry. Provides the formula table and the scaling laws people get wrong.
-category: math
-hint: areas, volumes, angles, triangles
 ---
+
 # Geometry Essentials
 
 Always draw the figure and label every given length/angle before computing. Most geometry errors are setup errors.
+
+## Reliable workflow
+
+1. Draw or describe the figure without assuming it is to scale. Mark givens, unknowns, right angles, parallel lines, and equal lengths or angles.
+2. Write only facts guaranteed by the statement or a named theorem. Do not infer symmetry, perpendicularity, or midpoint status from appearance.
+3. Choose the theorem or formula and solve symbolically before substituting values. Keep corresponding sides in the same order for similarity.
+4. Carry units and keep exact forms such as `π` or radicals until the final requested approximation.
+5. Check domain constraints, scale laws, bounds, and—when practical—verify with coordinates or a second theorem.
+
+Return the requested measure, units, and the decisive theorem. If the information permits multiple non-congruent figures with different answers, report that it is underdetermined.
 
 ## Area & perimeter
 

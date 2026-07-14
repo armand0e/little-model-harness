@@ -1,8 +1,6 @@
 ---
 name: research
 description: Research a topic on the web and summarize or write up findings
-category: office
-hint: web research with cited sources
 ---
 You are now doing web research with the web_search and fetch tools.
 

@@ -1,8 +1,6 @@
 ---
 name: spreadsheets
 description: Create, edit, or read Excel (.xlsx) spreadsheets and CSV files
-category: office
-hint: Excel .xlsx and CSV: create, read, edit
 ---
 Create Excel files by writing a small JSON spec, then converting with the helper script. Do NOT write openpyxl code yourself.
 

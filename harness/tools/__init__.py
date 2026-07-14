@@ -337,6 +337,33 @@ def build_registry(skills_manager) -> ToolRegistry:
         }, "required": ["url"]},
     }, fetch_url)
 
+    def browser_tool(agent, action: str, url: str | None = None,
+                     ref: str | None = None, text: str | None = None,
+                     key: str | None = None, direction: str = "down",
+                     amount: int = 650, wait_ms: int = 500) -> str:
+        from ..browser import control
+        return control(
+            action, url=url, ref=ref, text=text, key=key,
+            direction=direction, amount=amount, wait_ms=wait_ms,
+            screenshot_dir=_ws(agent),
+            stop_event=getattr(agent, "_stop", None),
+        )
+
+    reg.register({
+        "name": "browser",
+        "description": "Control the managed browser using semantic refs and fresh screenshots. Open a public URL or call state, then click/type/select only refs from the latest result; every action returns updated page state and visual evidence.",
+        "parameters": {"type": "object", "properties": {
+            "action": {"type": "string", "enum": ["open", "state", "click", "type", "press", "select", "scroll", "back", "forward", "reload", "wait", "screenshot"]},
+            "url": {"type": "string", "description": "public http(s) URL for open"},
+            "ref": {"type": "string", "description": "semantic ref such as e3 from latest state"},
+            "text": {"type": "string", "description": "value for type/select"},
+            "key": {"type": "string", "description": "Playwright key such as Enter or Control+L"},
+            "direction": {"type": "string", "enum": ["up", "down", "left", "right"]},
+            "amount": {"type": "integer", "description": "scroll pixels, default 650"},
+            "wait_ms": {"type": "integer", "description": "settle time, default 500"},
+        }, "required": ["action"]},
+    }, browser_tool)
+
     computer_ready_apps: set[str] = set()
     computer_current_app: str | None = None
     computer_last_reports: dict[str, str] = {}

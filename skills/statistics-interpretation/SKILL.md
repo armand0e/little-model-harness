@@ -1,10 +1,20 @@
 ---
 name: statistics-interpretation
 description: Use when interpreting data, averages, polls, studies, charts, "statistically significant" claims, or any statistics in news and reports. Covers mean/median/mode choice, variability, sampling, significance, and how statistics mislead.
-category: math
-hint: read stats claims without being fooled
 ---
+
 # Statistics Interpretation
+
+## Reliable workflow
+
+1. Define the estimand: population, outcome, comparison, time window, and whether the target is descriptive, predictive, or causal.
+2. Inspect provenance and shape before summarizing: collection process, missingness, exclusions, units, denominator, distribution, outliers, and subgroup composition.
+3. Choose summaries and visuals that match the data and question. Report center with spread, counts with rates, and estimates with uncertainty.
+4. Check sampling, measurement, multiple testing, model assumptions, attrition, and researcher degrees of freedom.
+5. Translate the result into absolute scale and practical effect. Separate statistical evidence from causal interpretation and decision importance.
+6. State what the data support, what they do not support, and which limitation could most change the conclusion.
+
+Never infer an individual outcome from a group average, combine groups without weights, or report more precision than the design and sample support.
 
 ## Center: mean, median, mode
 
@@ -23,11 +33,11 @@ Two cities with mean 15°C: one ranges 10–20, the other −10 to 40. Always as
 - A sample only informs about the population it was drawn from. Twitter polls describe Twitter users who chose to answer.
 - **Bias beats size**: a huge biased sample is worse than a small random one (the 1936 Literary Digest poll: 2.4M responses, dead wrong).
 - Watch for: self-selection (volunteers differ), survivorship (only successes visible), convenience samples, leading question wording, non-response bias.
-- Margin of error for a random poll ≈ 1/√n: n=1000 → ~±3 percentage points. Differences inside the margin are not meaningful.
+- For a simple random proportion near 50%, an approximate 95% margin of error is `1/√n`: n=1000 gives about ±3 percentage points. Weighting, clustering, nonresponse, wording, and model error can make total uncertainty larger; overlapping margins do not by themselves prove no difference.
 
 ## "Statistically significant"
 
-- Means: unlikely (conventionally p < 0.05) to see data this extreme if there were no real effect. It does NOT mean large, important, or proven.
+- A p-value is the probability, assuming the null model and other analysis assumptions, of data at least as incompatible with that model as what was observed. It is not the probability that the null is true and does not measure effect size, importance, or proof.
 - p < 0.05 will occur by chance ~1 in 20 tests of null effects — many comparisons → some false hits guaranteed (multiple-comparisons problem; cue: study tested many outcomes and reports one).
 - Non-significant ≠ no effect; may be an underpowered (too small) study.
 - Ask instead: what is the EFFECT SIZE and its confidence interval, and was the study preregistered/replicated?

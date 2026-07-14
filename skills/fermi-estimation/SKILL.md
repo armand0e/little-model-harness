@@ -1,21 +1,22 @@
 ---
 name: fermi-estimation
 description: Use when asked to estimate a quantity without data - "how many piano tuners in Chicago", market sizes, "could this fit", resource ballparks - or to sanity-check any surprising number. Provides the decomposition method and anchor numbers.
-category: reasoning
-hint: order-of-magnitude estimates from scratch
 ---
+
 # Fermi Estimation
 
 Goal: get within a factor of ~3 of the truth by decomposing into factors you can each estimate within a factor of ~2. Errors partially cancel across factors.
 
-## Method
+## Reliable workflow
 
-1. **Define precisely** what's being estimated (units! per year? total? in the US?).
-2. **Decompose** into a product/sum of estimable factors. Prefer factors tied to things you know (population, per-person rates, frequencies, sizes).
-3. **Estimate each factor** with an explicit number. When unsure, pick geometric middles: if between 10 and 1000, use 100 (√(10·1000)), not 500.
-4. **Compute in powers of ten**, keeping 1 significant figure.
-5. **Cross-check** with a different decomposition or a known comparable.
-6. **State the answer with its uncertainty**: "on the order of 10⁴, likely 5k–30k."
+1. **Define** the target, unit, geography/population, and time window. State what is included and excluded.
+2. **Decompose twice** using meaningfully different chains when possible. Prefer observable factors such as population, adoption, frequency, capacity, and utilization.
+3. **Bound each uncertain factor** with low/central/high values. Use geometric midpoints for multiplicative uncertainty and cite or label anchor assumptions.
+4. **Compute by powers of ten** and preserve units. Identify which factor dominates the final uncertainty.
+5. **Cross-check** against capacity, conservation, a known comparable, or the second decomposition. Revisit assumptions if estimates differ by more than about one order of magnitude.
+6. **Report** the central order of magnitude, a defensible range, assumptions, and the highest-value fact to measure next.
+
+Do not claim that independent factor errors will necessarily cancel. Correlated optimistic assumptions can multiply into a large bias.
 
 ## Anchor numbers (memorize these)
 

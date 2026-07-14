@@ -1,19 +1,22 @@
 ---
 name: logical-fallacies
 description: Use when asked to evaluate an argument, debate point, persuasive text, or claim for flaws; when identifying why reasoning is weak; or when the user asks "what's wrong with this argument?". Catalogs the major fallacies with detection cues.
-category: reasoning
-hint: name and rebut bad arguments
 ---
+
 # Logical Fallacies
 
 A fallacy is a reasoning pattern that feels persuasive but doesn't actually support the conclusion. Name the fallacy AND explain why the specific argument fails — naming alone isn't analysis, and a fallacious argument can still have a true conclusion.
 
-## Detection procedure
+## Reliable workflow
 
-1. State the conclusion the argument wants you to accept.
-2. State the evidence actually offered.
-3. Ask: does the evidence, if true, make the conclusion more likely? By how much?
-4. If the persuasive force comes from something other than evidence (emotion, source, popularity, fear), match it below.
+1. Reconstruct the argument charitably: conclusion, explicit premises, and necessary hidden premise. Use the strongest reasonable reading, not the easiest target.
+2. Ask whether the premises are relevant, acceptable, and jointly sufficient for the conclusion. A weak link may be missing evidence rather than a named fallacy.
+3. Quote or paraphrase the exact inferential gap, then name a fallacy only if its definition fits that gap.
+4. Explain the damage: does the flaw make the support irrelevant, weaken confidence, or fully invalidate the inference?
+5. State what evidence or revised premise would repair the argument.
+6. Evaluate the conclusion separately. A failed argument leaves the conclusion unsupported; it does not prove the conclusion false.
+
+**Output:** Present `conclusion → premises → inferential gap → fallacy label if warranted → effect on support → repair`.
 
 ## Fallacies of relevance (evidence doesn't bear on the claim)
 

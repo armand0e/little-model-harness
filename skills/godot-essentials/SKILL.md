@@ -1,10 +1,20 @@
 ---
 name: godot-essentials
 description: Use for Godot Engine (4.x) questions - nodes, scenes, GDScript, signals, physics bodies, input, UI, animation, and project structure. The engine-specific counterpart to game-design-fundamentals.
-category: creative
-hint: Godot 4: nodes, scenes, GDScript
 ---
+
 # Godot Essentials (4.x)
+
+## Reliable workflow
+
+1. Inspect the exact Godot version, renderer, project settings, input map, autoloads, scene tree, and error output. Do not assume every 4.x minor release or 3.x project uses the same API.
+2. Reduce the task or bug to one runnable scene. Identify node ownership, lifecycle callback, coordinate space, physics step, and signal direction.
+3. Choose the engine-native abstraction: node composition, resource, signal, group, animation, physics body, container, or autoload. Avoid deep parent traversal and global state without a clear owner.
+4. Implement one vertical path and run it. Inspect the Remote scene tree, debugger, monitors, visible collisions, and actual property values rather than inferring them.
+5. Test scene reload, pause, resize, different frame rates, missing nodes/resources, repeated signals, and the target export platform as relevant.
+6. Report the exact node path, script location, setup steps, and verified engine version.
+
+For code examples, state any required Input Map actions, scene hierarchy, collision layers/masks, and Inspector values; code alone may be incomplete.
 
 ## The mental model: everything is a node; scenes are prefabs
 
@@ -50,7 +60,7 @@ Built-in: `body_entered`, `timeout`, `pressed`, `animation_finished`. Connect in
 timer.timeout.connect(_on_timer_timeout)
 died.emit(score)                # firing your own
 ```
-Signals decouple: the coin emits `collected`; the HUD and sound manager listen; the coin knows neither. For global events (score changed, game over), a small **autoload** (Project Settings → Globals) singleton like `Events.gd` holding shared signals is the standard pattern — also where run-persistent state (score, settings) lives, since scene changes destroy the current tree.
+Signals decouple: the coin emits `collected`; the HUD and sound manager listen; the coin knows neither. For genuinely cross-scene events or state, a small **autoload** (Project Settings → Globals) can own shared signals or run-persistent state. Keep its interface narrow; not every convenient reference belongs in a global singleton.
 
 ## Input
 

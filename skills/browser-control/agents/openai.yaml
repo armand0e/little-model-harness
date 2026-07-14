@@ -1,0 +1,4 @@
+interface:
+  display_name: "Browser Control"
+  short_description: "Navigate and verify pages with the managed browser"
+  default_prompt: "Use $browser-control to navigate this site and verify the result."

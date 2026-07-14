@@ -78,7 +78,7 @@ def test_skill_save_preserves_metadata_and_limits_index_hint(
     assert result.startswith("Saved")
     parsed = skills._parse_skill_md(users / "new-skill" / "SKILL.md")
     assert parsed is not None
-    assert len(parsed.hint.split()) == 10
+    assert 0 < len(parsed.hint.split()) <= 10
     assert skills.save_skill("empty", "", "Body").startswith("Error")
 
 
@@ -92,6 +92,30 @@ def test_entire_bundled_skill_catalog_is_valid_and_unique():
     assert all(skill.description and skill.body for skill in valid)
     assert all(0 < len(skill.hint.split()) <= 10 for skill in valid)
     assert all(skill.category in skills.CATEGORY_ORDER for skill in valid)
+
+
+def test_standard_skill_metadata_gets_compact_local_grouping(tmp_path: Path):
+    skill_dir = tmp_path / "browser-control"
+    skill_dir.mkdir()
+    (skill_dir / "SKILL.md").write_text(
+        "---\nname: browser-control\n"
+        "description: Use when operating a public website with semantic refs "
+        "and screenshots for verification.\n---\nInstructions\n",
+        encoding="utf-8")
+    parsed = skills._parse_skill_md(skill_dir / "SKILL.md")
+    assert parsed is not None
+    assert parsed.category == "office"
+    assert parsed.hint.startswith("operating a public website")
+    assert not parsed.hint.endswith("verificatio")
+
+
+def test_browser_and_terminal_skills_route_to_first_class_tools():
+    manager = skills.SkillsManager()
+    browser_matches = manager.recommend("open Gmail in the browser and click inbox")
+    assert "browser-control" in browser_matches
+    assert "computer" not in browser_matches
+    assert "terminal-workflows" in manager.recommend(
+        "run the test suite from the terminal")
 
 
 def test_corrupt_oversized_prompt_inputs_are_bounded(

@@ -1,22 +1,33 @@
 ---
 name: physics-intuition
 description: Use for physics questions, "what happens if" physical scenarios, everyday mechanics (falling, floating, heat, electricity, light), energy claims, and detecting physically impossible statements. Provides laws, key numbers, and the misconceptions to avoid.
-category: science
-hint: forces, energy, momentum sanity checks
 ---
+
 # Physics Intuition
+
+## Reliable workflow
+
+1. Define the system boundary, reference frame, time interval, and idealizations. Draw forces, energy flows, rays, or a circuit before calculating.
+2. List knowns and unknowns with units. Choose the governing conservation law or constitutive relation and state when it applies.
+3. Solve symbolically, then substitute values. Keep vectors, signs, and components explicit.
+4. Check dimensions, limiting cases, conservation, direction, and order of magnitude. Compare with an independent energy/force/kinematic route when practical.
+5. State assumptions and whether neglected drag, friction, heat loss, deformation, relativity, or quantum effects could change the result.
+
+Treat high voltage, radiation, pressure vessels, fire, structural loads, projectiles, and high-energy experiments as safety-critical. Give conceptual guidance and route real procedures to qualified standards or professionals.
+
+**Output:** State the model and assumptions, governing law, symbolic setup, unit-carrying result, and conservation/limit check.
 
 ## The conservation laws (the ultimate sanity checks)
 
-- **Energy is conserved** — converted, never created/destroyed. Any device claiming output > input (perpetual motion, "free energy") is wrong, full stop; no exceptions have ever been found.
+- **Energy accounting closes for an isolated system**: energy changes form or crosses the chosen boundary rather than appearing from nothing. A device claiming sustained useful output greater than all inputs requires a missing input, stored-energy release, measurement error, or a violation unsupported by established evidence.
 - **Momentum is conserved**: recoil exists; you can't push on nothing (rockets push on their own exhaust).
-- Every process loses some useful energy to heat (friction, resistance) — real machines are < 100% efficient (car engines ~25–35%, electric motors ~90%+, solar panels ~20%).
+- Real processes usually dissipate some useful energy as heat, sound, or deformation, so practical machines are below 100% efficiency. Example efficiencies vary widely by design and operating point; use quoted ranges only as rough anchors.
 
 ## Mechanics
 
 - Objects in motion stay in motion unless a force acts (Newton 1). Moving at constant velocity requires ZERO net force — the engine force just balances friction/drag. Force causes ACCELERATION (F = ma), not motion itself.
 - **Falling**: in vacuum, all masses fall alike (g ≈ 9.8 m/s² — hammer and feather hit together on the Moon). Air resistance is why feathers flutter. Heavier does NOT mean faster-falling per se. Terminal velocity of a skydiver ≈ 55 m/s (200 km/h).
-- A dropped/thrown object's horizontal and vertical motions are independent: a bullet fired level and one dropped hit the ground together.
+- With the same starting height and vertical velocity, uniform gravity, and negligible air effects, horizontal and vertical motion separate: a projectile fired level and an object dropped at the same instant land together.
 - Speed after falling height h: v = √(2gh) — 5 m fall → ~10 m/s (36 km/h). Falls from 10+ m are car-crash serious.
 - **Orbit is falling**: astronauts float not because gravity is absent (ISS gravity is ~89% of surface) but because they're in continuous free fall around Earth.
 - Kinetic energy = ½mv² — grows with the SQUARE of speed: doubling speed quadruples crash energy and roughly quadruples braking distance.
@@ -34,7 +45,7 @@ hint: forces, energy, momentum sanity checks
 
 - Current needs a closed loop. Voltage is push (pressure), current is flow, resistance opposes: V = IR. Power P = VI. It's current through your body that harms, but voltage drives it (dry skin protects at low voltage).
 - Household: ~120 V (US) / 230 V (EU); a kettle ~2 kW; LED bulb ~10 W does what a 60 W incandescent did; a home draws ~1 kW average, ~30 kWh/day (US).
-- Light: ~3×10⁸ m/s, nothing with mass reaches it. Sound: ~343 m/s in air — lightning-to-thunder 3 s ≈ 1 km. Light needs no medium (space is bright with sunlight); sound needs one (space is silent).
+- Light travels at about 3×10⁸ m/s in vacuum; objects with mass do not reach that speed. Sound in room-temperature air is about 343 m/s, so a 3 s lightning-to-thunder delay is roughly 1 km. Light crosses vacuum without a medium; empty space looks dark away from sources because little light scatters into the eye. Sound requires a material medium.
 - Color: white light contains all colors (prism/rainbow); an object looks red because it REFLECTS red and absorbs the rest. The sky is blue because air scatters blue light most (sunsets red for the same reason, path length).
 
 ## Misconception checklist (reject these)

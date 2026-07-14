@@ -1,10 +1,19 @@
 ---
 name: combinatorics-and-counting
 description: Use for counting questions - "how many ways", arrangements, committees, passwords, handshakes, permutations vs combinations - and the counting stage of probability problems. Provides the decision tree that picks the right formula.
-category: math
-hint: permutations, combinations, counting
 ---
+
 # Combinatorics & Counting
+
+## Reliable workflow
+
+1. Define one outcome precisely. State whether objects and positions are distinguishable, whether order matters, whether repetition is allowed, and which constraints apply.
+2. Partition the outcome space into disjoint cases, or count a simpler superset and subtract invalid outcomes. Never add overlapping cases without inclusion-exclusion.
+3. Build the count from explicit choices. After every multiplication, say what each factor chooses; after every division, say why each outcome was counted that many times.
+4. Compute symbolically before evaluating large factorials. Cancel factors early to reduce arithmetic errors.
+5. Verify on a tiny instance by listing or brute force, then cross-check with a complement, recurrence, symmetry, or second decomposition when practical.
+
+Return the counting model before the number. If outcomes are not equally likely, do not turn the count directly into a probability.
 
 ## The decision tree
 

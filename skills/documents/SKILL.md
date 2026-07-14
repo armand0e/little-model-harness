@@ -1,8 +1,6 @@
 ---
 name: documents
 description: Create, edit, or read Word (.docx) documents and read PDFs
-category: office
-hint: Word .docx and PDF files: create, read, edit
 ---
 Create Word documents by writing Markdown, then converting with the helper script. Do NOT write python-docx code yourself.
 

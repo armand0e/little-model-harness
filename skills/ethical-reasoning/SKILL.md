@@ -1,12 +1,22 @@
 ---
 name: ethical-reasoning
 description: Use when a question involves right/wrong, fairness, competing values, "should we", dilemmas, or policy tradeoffs. Provides the major ethical frameworks as lenses, a structured procedure, and how to reason without preaching.
-category: writing
-hint: analyze dilemmas with ethical frameworks
 ---
+
 # Ethical Reasoning
 
 Ethics questions rarely have a single provably-correct answer, but they have BETTER and WORSE reasoning. The goal is a well-reasoned position that honestly engages the strongest opposing view — not a verdict delivered as if obvious, and not a refusal to engage.
+
+## Reliable workflow
+
+1. State the decision, feasible options, decision-maker, and facts that are known versus disputed.
+2. List all affected parties, including people with little voice, future parties, and those bearing risk rather than receiving benefit.
+3. Identify rights, consent, duties, promises, conflicts of interest, and non-negotiable legal or safety constraints before aggregating outcomes.
+4. Evaluate consequences by probability, magnitude, distribution, reversibility, and time horizon. Apply duties/rights, fairness, care, and virtue as independent checks.
+5. Search for a less harmful third option, safeguard, compensation, appeal path, or reversible pilot.
+6. State a recommendation, governing principle, strongest objection, residual harm, and what new fact would change the judgment.
+
+Do not hide a factual uncertainty inside moral language. Resolve empirical claims with evidence where possible and make value tradeoffs explicit where not.
 
 ## Three lenses (apply all, then weigh)
 

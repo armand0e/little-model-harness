@@ -1,0 +1,4 @@
+interface:
+  display_name: "Terminal Workflows"
+  short_description: "Run reliable workspace-aware terminal workflows"
+  default_prompt: "Use $terminal-workflows to inspect and run this project safely."
