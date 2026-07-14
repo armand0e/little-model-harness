@@ -22,6 +22,32 @@ from typing import Any
 APP_NAME = "Little Harness"
 
 
+class WindowApi:
+    """Small, explicit bridge for the frameless desktop chrome."""
+
+    def __init__(self) -> None:
+        self.window: Any | None = None
+        self._maximized = False
+
+    def minimize(self) -> None:
+        if self.window is not None:
+            self.window.minimize()
+
+    def toggle_maximize(self) -> bool:
+        if self.window is None:
+            return False
+        if self._maximized:
+            self.window.restore()
+        else:
+            self.window.maximize()
+        self._maximized = not self._maximized
+        return self._maximized
+
+    def close(self) -> None:
+        if self.window is not None:
+            self.window.destroy()
+
+
 def _runpy_mode() -> None:
     import runpy
     import traceback
@@ -168,9 +194,13 @@ def main() -> None:
     try:
         try:
             import webview
-            webview.create_window(APP_NAME, url, width=1360, height=880,
-                                  min_size=(920, 620), confirm_close=False,
-                                  text_select=True, zoomable=True)
+            window_api = WindowApi()
+            window_api.window = webview.create_window(
+                APP_NAME, url + "/?desktop=1", width=1360, height=880,
+                min_size=(920, 620), confirm_close=False,
+                text_select=True, zoomable=True, frameless=True,
+                easy_drag=False, js_api=window_api,
+            )
             webview.start()      # blocks until the window is closed
         except Exception:
             # no webview backend on this machine — at least show the UI

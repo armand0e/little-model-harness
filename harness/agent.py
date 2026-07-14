@@ -491,6 +491,9 @@ class Agent:
     def run_turn(self, user_text: str,
                  on_event: Optional[Callable[[str, object], None]] = None,
                  stream: bool = True) -> str:
+        reset_transport = getattr(self.llm, "reset_cancel", None)
+        if not self._stop.is_set() and callable(reset_transport):
+            reset_transport()
         # Skill activation is turn-scoped. Persisting only the loaded-name set
         # while old tool results fade made later turns believe instructions
         # were loaded when the body was no longer present.
@@ -519,6 +522,8 @@ class Agent:
             # at turn entry: a stop requested during job startup must survive
             # until the loop observes it.
             self._stop.clear()
+            if callable(reset_transport):
+                reset_transport()
 
     def _run_turn(self, user_text: str,
                   on_event: Optional[Callable[[str, object], None]] = None,
@@ -690,7 +695,9 @@ class Agent:
                 name = tc["function"]["name"]
                 args = tc["function"]["arguments"]
                 emit("tool_call", {"name": name, "arguments": args})
-                if tc["id"] in bad_calls:
+                if self._stop.is_set():
+                    result = "Error: tool call skipped because the user stopped this turn."
+                elif tc["id"] in bad_calls:
                     result = bad_calls[tc["id"]]
                 elif computer_blocked and name in {"computer", "run"}:
                     computer_blocked_attempts += 1

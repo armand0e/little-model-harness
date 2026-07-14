@@ -155,7 +155,9 @@ def visual_check(target: str | Path, output_root: Path,
                         diag = page.evaluate("""() => {
                           const root = document.documentElement;
                           const body = document.body;
-                          const broken = [...document.images].filter(
+                          const relevantImages = [...document.images].filter(img =>
+                            img.getAttribute('src') && img.getClientRects().length > 0);
+                          const broken = relevantImages.filter(
                             img => img.complete && img.naturalWidth === 0).length;
                           const overflow = Math.max(root.scrollWidth, body?.scrollWidth || 0)
                             - root.clientWidth;
@@ -164,7 +166,7 @@ def visual_check(target: str | Path, output_root: Path,
                             pageWidth: Math.max(root.scrollWidth, body?.scrollWidth || 0),
                             pageHeight: Math.max(root.scrollHeight, body?.scrollHeight || 0),
                             overflow: Math.max(0, overflow), brokenImages: broken,
-                            visibleText, images: document.images.length};
+                            visibleText, images: relevantImages.length};
                         }""")
                         shot_path = output / f"{safe_target}-{safe_state}-{name}.png"
                         page.screenshot(path=str(shot_path), full_page=bool(full_page),

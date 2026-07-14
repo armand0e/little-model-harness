@@ -142,7 +142,8 @@ class ToolRegistry:
                     return f"Error: MCP tool arguments were not valid JSON ({e})."
                 if not isinstance(args, dict):
                     return "Error: MCP tool arguments must be a JSON object."
-                return MCP_HUB.call(name, args)
+                return MCP_HUB.call(
+                    name, args, stop_event=getattr(agent, "_stop", None))
             known = ", ".join(self._tools)
             return f"Error: unknown tool '{name}'. Available tools: {known}"
         _, fn = self._tools[name]
@@ -306,7 +307,10 @@ def build_registry(skills_manager) -> ToolRegistry:
     }, search_t)
 
     def run_t(agent, command: str, timeout_seconds: int = 60) -> str:
-        return run_command(command, timeout_seconds, cwd=_ws(agent))
+        return run_command(
+            command, timeout_seconds, cwd=_ws(agent),
+            stop_event=getattr(agent, "_stop", None),
+        )
 
     reg.register({
         "name": "run",
@@ -542,7 +546,7 @@ def build_registry(skills_manager) -> ToolRegistry:
         }, "required": ["action"]},
     }, computer_tool)
 
-    def mcp_tool(action: str, query: str | None = None,
+    def mcp_tool(agent, action: str, query: str | None = None,
                  tool: str | None = None,
                  arguments: dict | None = None) -> str:
         """Progressive discovery/call facade for large MCP catalogs."""
@@ -557,7 +561,10 @@ def build_registry(skills_manager) -> ToolRegistry:
                         "its exact public name first.")
             if arguments is not None and not isinstance(arguments, dict):
                 return "Error: mcp arguments must be an object."
-            return MCP_HUB.call(tool, arguments or {})
+            return MCP_HUB.call(
+                tool, arguments or {},
+                stop_event=getattr(agent, "_stop", None),
+            )
         return "Error: mcp action must be 'search' or 'call'."
 
     reg.register({

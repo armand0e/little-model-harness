@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import httpx
 import pytest
+import threading
+import time
 
 import harness.llm as llm_module
 from harness.llm import LLMClient
@@ -114,5 +116,49 @@ def test_stream_accepts_common_reasoning_aliases():
             (kind, text)))
         assert response.reasoning == "thinking"
         assert updates[0] == ("reasoning", "thinking")
+    finally:
+        client.close()
+
+
+def test_cancel_current_closes_the_active_stream_promptly():
+    class BlockingStream(httpx.SyncByteStream):
+        def __init__(self):
+            self.started = threading.Event()
+            self.closed = threading.Event()
+
+        def __iter__(self):
+            self.started.set()
+            yield b'data: {"choices":[{"delta":{"content":"partial"}}]}\n\n'
+            self.closed.wait(0.5)
+            raise httpx.ReadError("stream closed")
+
+        def close(self):
+            self.closed.set()
+
+    stream = BlockingStream()
+    client = LLMClient("http://model.invalid/v1", "test")
+    client._client.close()
+    client._client = httpx.Client(transport=httpx.MockTransport(
+        lambda request: httpx.Response(200, stream=stream, headers={
+            "content-type": "text/event-stream"})))
+    result = []
+
+    def generate():
+        try:
+            client.chat([], on_delta=lambda kind, text: None)
+        except Exception as exc:  # assertion inspects the worker exception
+            result.append(exc)
+
+    worker = threading.Thread(target=generate)
+    worker.start()
+    assert stream.started.wait(1)
+    started = time.monotonic()
+    client.cancel_current()
+    worker.join(2)
+    try:
+        assert not worker.is_alive()
+        assert time.monotonic() - started < 1
+        assert len(result) == 1
+        assert "cancelled" in str(result[0])
     finally:
         client.close()

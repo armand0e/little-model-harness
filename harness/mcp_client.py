@@ -19,6 +19,7 @@ import re
 import shutil
 import sys
 import threading
+import time
 from concurrent.futures import Future as ConcurrentFuture
 from dataclasses import dataclass
 from typing import Any
@@ -426,7 +427,8 @@ class MCPHub:
                     and self._schema_sources.get(name) != BUILTIN_COMPUTER_SERVER)
 
     def call(self, public_name: str, arguments: dict,
-             timeout: float = CALL_TIMEOUT) -> str:
+             timeout: float = CALL_TIMEOUT,
+             stop_event: threading.Event | None = None) -> str:
         self.ensure_configured()
         with self._lock:
             route = self._routes.get(public_name)
@@ -436,12 +438,26 @@ class MCPHub:
         loop = self._ensure_loop()
         future = asyncio.run_coroutine_threadsafe(
             self._call(server_name, tool_name, arguments), loop)
-        try:
-            result = future.result(timeout=timeout)
-            return _format_result(result)
-        except Exception as exc:
-            future.cancel()
-            return f"Error running MCP tool {public_name}: {type(exc).__name__}: {exc}"
+        deadline = time.monotonic() + timeout
+        while True:
+            if stop_event is not None and stop_event.is_set():
+                future.cancel()
+                return f"Error running MCP tool {public_name}: stopped by user."
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                future.cancel()
+                return f"Error running MCP tool {public_name}: timed out."
+            try:
+                result = future.result(timeout=min(0.1, remaining))
+                return _format_result(result)
+            except TimeoutError as exc:
+                if future.done():
+                    return (f"Error running MCP tool {public_name}: "
+                            f"{type(exc).__name__}: {exc}")
+                continue
+            except Exception as exc:
+                future.cancel()
+                return f"Error running MCP tool {public_name}: {type(exc).__name__}: {exc}"
 
     async def _call(self, server_name: str, tool_name: str,
                     arguments: dict) -> Any:

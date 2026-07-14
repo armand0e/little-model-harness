@@ -816,11 +816,14 @@ def delete_session(sid: str):
 @app.post("/api/sessions/{sid}/stop")
 def stop_session(sid: str):
     s = _get(sid)
-    if s._job:
-        s._job.cancel()
+    job = s._job
+    if job:
+        job.cancel()
     elif s.running and s._agent:
         s._agent.request_stop()
-    return {"ok": True}
+    return {"ok": True, "requested": bool(job or s.running),
+            "job_id": job.id if job else None,
+            "state": job.state if job else "idle"}
 
 
 class RevertBody(BaseModel):

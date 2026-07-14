@@ -24,6 +24,7 @@
   }
   * { box-sizing: border-box; margin: 0; }
   html, body { height: 100%; }
+  html.desktop-shell body { padding-top: 36px; }
   body {
     font: 15px/1.6 -apple-system, "Segoe UI", system-ui, sans-serif;
     background: var(--bg); color: var(--text); display: flex; overflow: hidden;
@@ -33,6 +34,24 @@
   ::-webkit-scrollbar { width: 8px; height: 8px; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
   ::-webkit-scrollbar-track { background: transparent; }
+
+  /* ============ frameless desktop chrome ============ */
+  #windowbar { display: none; position: fixed; inset: 0 0 auto 0; height: 36px;
+    z-index: 110; align-items: center; color: var(--muted);
+    background: color-mix(in srgb, var(--panel) 94%, #000 6%);
+    border-bottom: 1px solid var(--border); user-select: none; }
+  html.desktop-shell #windowbar { display: flex; }
+  .window-drag { height: 100%; flex: 1; display: flex; align-items: center;
+    gap: 9px; padding: 0 12px; -webkit-app-region: drag; }
+  .window-mark { color: var(--accent); display: inline-flex; }
+  .window-name { color: var(--text); font-size: 12px; font-weight: 650; }
+  .window-context { color: var(--faint); font-size: 11px; }
+  .window-controls { height: 100%; display: flex; -webkit-app-region: no-drag; }
+  .window-controls button { width: 46px; height: 100%; display: grid;
+    place-items: center; color: var(--muted); }
+  .window-controls button:hover { color: var(--text); background: var(--border-soft); }
+  .window-controls .window-close:hover { color: #fff; background: #c42b1c; }
+  .window-controls svg { width: 11px; height: 11px; }
 
   /* ============ sidebar ============ */
   #sidebar {
@@ -55,6 +74,14 @@
     transition: background .15s;
   }
   .newchat:hover { background: var(--accent-hover); }
+  .sb-nav { display: grid; gap: 2px; padding: 2px 8px 8px; }
+  .sb-nav button { display: flex; align-items: center; gap: 10px; width: 100%;
+    padding: 7px 10px; border-radius: 8px; color: var(--muted);
+    font-size: 13px; text-align: left; }
+  .sb-nav button:hover { color: var(--text); background: var(--border-soft); }
+  .sb-nav button.active { color: var(--text); background: var(--user-bg); }
+  .sb-nav svg { width: 14px; height: 14px; }
+  .sb-nav .nav-count { margin-left: auto; color: var(--faint); font-size: 10.5px; }
   #historyscope { margin: 2px 18px 6px; color: var(--faint); font-size: 10.5px;
     font-weight: 700; letter-spacing: .65px; text-transform: uppercase; }
   #search {
@@ -384,6 +411,7 @@
   #sendbtn:disabled { opacity: .35; cursor: default; }
   #stopbtn { display: none; }
   body.running #stopbtn { display: flex; }
+  body.stopping #stopbtn { opacity: .62; cursor: wait; }
 
   /* ============ right drawer ============ */
   #drawer {
@@ -598,6 +626,7 @@
       margin-left: 0 !important; transform: translateX(-105%);
       box-shadow: 6px 0 24px rgba(0, 0, 0, .35);
     }
+    html.desktop-shell #sidebar { top: 36px; height: calc(100% - 36px); }
     body.sb-hidden #sidebar { box-shadow: none; }
     body:not(.sb-hidden) #sidebar { transform: none; }
     body:not(.sb-hidden) #sbback { display: block; }
@@ -635,10 +664,28 @@
 </head>
 <body class="booting">
 
+<header id="windowbar" aria-label="Window controls">
+  <div class="window-drag pywebview-drag-region" id="windowdrag">
+    <span class="window-mark"><svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M12 2l7 10-7 10-7-10z"/></svg></span>
+    <span class="window-name">Little Harness</span>
+    <span class="window-context" id="windowcontext">Local AI workspace</span>
+  </div>
+  <div class="window-controls">
+    <button type="button" id="windowmin" title="Minimize" aria-label="Minimize"><svg viewBox="0 0 12 12"><path d="M1 6.5h10" stroke="currentColor"/></svg></button>
+    <button type="button" id="windowmax" title="Maximize" aria-label="Maximize"><svg viewBox="0 0 12 12"><rect x="1.5" y="1.5" width="9" height="9" fill="none" stroke="currentColor"/></svg></button>
+    <button type="button" id="windowclose" class="window-close" title="Close" aria-label="Close"><svg viewBox="0 0 12 12"><path d="M2 2l8 8m0-8-8 8" stroke="currentColor"/></svg></button>
+  </div>
+</header>
+<script>if(new URLSearchParams(location.search).get("desktop")==="1")document.documentElement.classList.add("desktop-shell")</script>
+
 <nav id="sidebar">
   <div class="sb-head">
     <div class="logo"><em><svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M12 2l7 10-7 10-7-10z"/></svg></em> Little Harness</div>
     <button class="icon-btn" id="collapse" title="Hide sidebar"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+  </div>
+  <div class="sb-nav" aria-label="Workspace sections">
+    <button type="button" data-sidebar-mode="agent" class="active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 9l-4 3 4 3M16 9l4 3-4 3M14 5l-4 14"/></svg><span>Code tasks</span><span class="nav-count" id="codecount">0</span></button>
+    <button type="button" data-sidebar-mode="chat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 15a3 3 0 01-3 3H9l-5 3v-3a3 3 0 01-2-3V7a3 3 0 013-3h12a3 3 0 013 3z"/></svg><span>Chat</span><span class="nav-count" id="chatcount">0</span></button>
   </div>
   <button class="newchat" id="newchat" disabled><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> <span id="newchatlabel">New code task</span></button>
   <div id="historyscope">Code history</div>
@@ -826,6 +873,7 @@ let sessionWs = null;                                     // active chat's own w
 let artifacts = [], activeArt = -1, filesSnapshot = new Map();
 const activeTurns = new Map();                            // sid -> live/queued stream state
 const pendingSends = new Set();
+const stoppingSessions = new Set();
 let pendingFollowups = [];
 let sendAction = localStorage.lmhSendAction === "steer" ? "steer" : "queue";
 let draftMode = localStorage.lmhMode === "chat" ? "chat" : "agent";
@@ -844,7 +892,11 @@ function syncActiveUI() {
   const state = currentId ? activeTurns.get(currentId) : null;
   const session = sessions.find(s => s.id === currentId);
   running = !!state || !!(session && (session.running || session.queued));
+  const stopping = !!currentId && stoppingSessions.has(currentId);
   document.body.classList.toggle("running", running);
+  document.body.classList.toggle("stopping", stopping);
+  $("stopbtn").disabled = stopping;
+  $("stopbtn").title = stopping ? "Stopping…" : "Stop generation";
   $("wschip").classList.toggle("busy", running);
   const mode = currentMode();
   document.body.classList.toggle("chat-mode", mode === "chat");
@@ -857,6 +909,13 @@ function syncActiveUI() {
     button.classList.toggle("active", active);
     button.setAttribute("aria-pressed", String(active));
   });
+  document.querySelectorAll("[data-sidebar-mode]").forEach(button => {
+    const active = button.dataset.sidebarMode === mode;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+  $("codecount").textContent = modeSessions("agent").length;
+  $("chatcount").textContent = modeSessions("chat").length;
   $("modetoggle").title = mode === "agent"
     ? "Code mode can use skills, tools, files, and MCP" : "Chat mode has no tools";
   $("historyscope").textContent = mode === "chat" ? "Chat history" : "Code history";
@@ -1628,6 +1687,10 @@ async function refreshSessions() {
   const next = await api("/sessions");
   if (sequence !== refreshSessionsSequence) return false;
   sessions = next;
+  for (const sid of stoppingSessions) {
+    const session = sessions.find(item => item.id === sid);
+    if (!session?.running && !session?.queued) stoppingSessions.delete(sid);
+  }
   renderSidebar();
   syncActiveUI();
   return true;
@@ -1947,6 +2010,7 @@ function makeTurnRenderer(state) {
     else if (data.phase === "reasoning") label = "Reasoning";
     else if (data.phase === "answering") label = "Writing response";
     else if (data.phase === "running_tool") label = `Running ${data.tool || "tool"}`;
+    else if (data.phase === "stopping") label = "Stopping generation";
     if (data.idle_seconds >= 30) label += ` · no data for ${data.idle_seconds}s`;
     r.activity.querySelector(".activity-label").textContent = `${label} · ${duration}`;
   };
@@ -2127,6 +2191,27 @@ async function sendMessage(textOverride) {
     handleTurnEvent(state, { type: "error", data: String(e) });
   }
   await finishTurnStream(state);
+}
+
+async function stopGeneration() {
+  if (!currentId || !running) return;
+  const sid = currentId;
+  const state = activeTurns.get(sid);
+  if (stoppingSessions.has(sid)) return;
+  stoppingSessions.add(sid);
+  syncActiveUI();
+  if (state?.renderer) {
+    state.renderer.clearQueueNotice();
+    state.renderer.showActivity({ phase: "stopping", elapsed_seconds: 0 });
+  }
+  try {
+    await post(`/sessions/${sid}/stop`);
+    await refreshSessions();
+  } catch (error) {
+    stoppingSessions.delete(sid);
+    syncActiveUI();
+    await appAlert("Could not stop generation", error.message);
+  }
 }
 
 function handleTurnEvent(state, ev) {
@@ -2712,8 +2797,9 @@ document.addEventListener("keydown", e => {
   if (e.key === "Escape" && $("overlay").classList.contains("open")) {
     requestCloseSettings(); return;
   }
-  if (e.key === "Escape" && running && currentId)
-    post(`/sessions/${currentId}/stop`);
+  if (e.key === "Escape" && running && currentId) {
+    e.preventDefault(); stopGeneration();
+  }
   if ((e.ctrlKey || e.metaKey) && e.key === "k") { e.preventDefault(); newChat(); }
   if ((e.ctrlKey || e.metaKey) && e.key === "/") {
     e.preventDefault();
@@ -2735,7 +2821,7 @@ $("helpoverlay").addEventListener("click", e => {
   if (e.target === $("helpoverlay")) $("helpoverlay").style.display = "none";
 });
 $("sendbtn").onclick = () => sendMessage();
-$("stopbtn").onclick = () => currentId && post(`/sessions/${currentId}/stop`);
+$("stopbtn").onclick = stopGeneration;
 $("sendmode").onclick = e => {
   e.stopPropagation(); $("sendmenu").classList.toggle("open");
 };
@@ -2776,6 +2862,27 @@ async function setConversationMode(mode) {
 document.querySelectorAll("#modetoggle [data-mode]").forEach(button => {
   button.onclick = () => setConversationMode(button.dataset.mode);
 });
+document.querySelectorAll("[data-sidebar-mode]").forEach(button => {
+  button.onclick = () => setConversationMode(button.dataset.sidebarMode);
+});
+
+async function callWindow(action) {
+  try {
+    const api = window.pywebview?.api;
+    if (api && typeof api[action] === "function") await api[action]();
+  } catch (error) {
+    console.error(`Window action ${action} failed`, error);
+  }
+}
+$("windowmin").onclick = () => callWindow("minimize");
+$("windowmax").onclick = () => callWindow("toggle_maximize");
+$("windowclose").onclick = () => callWindow("close");
+$("windowdrag").ondblclick = event => {
+  if (!event.target.closest("button")) callWindow("toggle_maximize");
+};
+new MutationObserver(() => {
+  $("windowcontext").textContent = $("chat-title").textContent || "Local AI workspace";
+}).observe($("chat-title"), { childList: true, characterData: true, subtree: true });
 $("settingsbtn").onclick = openSettings;
 $("filesbtn").onclick = () => toggleDrawer("files");
 $("skillsbtn").onclick = () => toggleDrawer("skills");

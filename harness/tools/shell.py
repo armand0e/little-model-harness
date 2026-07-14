@@ -7,6 +7,8 @@ import signal
 import subprocess
 import sys
 import tempfile
+import threading
+import time
 from pathlib import Path
 from typing import Any
 
@@ -42,7 +44,8 @@ else:
 
 
 def run_command(command: str, timeout_seconds: int = 60,
-                cwd: Path | None = None) -> str:
+                cwd: Path | None = None,
+                stop_event: threading.Event | None = None) -> str:
     timeout_seconds = min(max(timeout_seconds, 1), 300)
     env = None
     if cwd is not None:
@@ -62,11 +65,16 @@ def run_command(command: str, timeout_seconds: int = 60,
         except FileNotFoundError:
             return ("Error: PowerShell not found." if _WINDOWS
                     else "Error: bash not found.")
-        try:
-            proc.wait(timeout=timeout_seconds)
-        except subprocess.TimeoutExpired:
-            _kill_process_tree(proc)
-            return f"Error: command timed out after {timeout_seconds}s."
+        deadline = time.monotonic() + timeout_seconds
+        while proc.poll() is None:
+            if stop_event is not None and stop_event.wait(0.08):
+                _kill_process_tree(proc)
+                return "Error: command stopped by user."
+            if time.monotonic() >= deadline:
+                _kill_process_tree(proc)
+                return f"Error: command timed out after {timeout_seconds}s."
+            if stop_event is None:
+                time.sleep(0.08)
         out = _bounded_capture(stdout).strip()
         err = _bounded_capture(stderr).strip()
     parts = []
