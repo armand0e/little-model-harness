@@ -115,6 +115,12 @@ jobs:
           python-version: "3.12"
           architecture: x64
           cache: pip
+      # Qt intentionally uses the host graphics stack on Linux; bundling Mesa
+      # or a vendor EGL implementation in an AppImage breaks GPU portability.
+      - name: Install Linux graphics runtime
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes libegl1
       - name: Build AppImage
         run: bash packaging/build_appimage.sh
       - name: Smoke-test AppImage
