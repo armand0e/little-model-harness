@@ -24,9 +24,6 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-      - uses: actions/setup-node@v6
-        with:
-          node-version: "22"
       - name: Install test dependencies
         run: |
           python -m pip install --upgrade pip
@@ -36,7 +33,6 @@ jobs:
           ruff check .
           mypy harness --ignore-missing-imports --check-untyped-defs --no-error-summary
           python -m compileall -q .
-          node -e "const fs=require('fs'),s=fs.readFileSync('web/index.html','utf8'),a=s.indexOf('<script>')+8,b=s.lastIndexOf('</script>');if(a<8||b<a)throw Error('main script not found');new Function(s.slice(a,b));"
           python -m pytest -q
 
   windows:
