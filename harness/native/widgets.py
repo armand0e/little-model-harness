@@ -447,12 +447,17 @@ class _UnixPty:
         shell = os.environ.get("SHELL", "/bin/bash")
         pid, fd = pty.fork()
         if pid == 0:  # child
+            # The child must never return into the Qt process on failure —
+            # that would leave a forked duplicate of the app running.
             try:
-                os.chdir(str(cwd))
-            except OSError:
-                pass
-            os.environ["TERM"] = "xterm-256color"
-            os.execvp(shell, [shell])
+                try:
+                    os.chdir(str(cwd))
+                except OSError:
+                    pass
+                os.environ["TERM"] = "xterm-256color"
+                os.execvp(shell, [shell])
+            except BaseException:
+                os._exit(127)
         self._pid, self._fd = pid, fd
         self.resize(cols, rows)
 
