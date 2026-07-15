@@ -45,9 +45,13 @@ def test_native_window_constructs_without_a_webview() -> None:
         assert window.windowFlags() & Qt.WindowType.FramelessWindowHint
         assert window.title_bar.isVisibleTo(window)
         assert window.transcript is not None
-        assert window.composer.placeholderText().startswith("Message Little Harness")
+        # empty conversations greet with the centered welcome composer
+        assert window.composer.placeholderText() in {
+            "How can I help you today?", "What should I research in depth?"}
+        assert window.welcome_host.isVisibleTo(window)
         assert window.code_nav.isCheckable()
         assert window.chat_nav.isCheckable()
+        assert window.research_nav.isCheckable()
         assert not hasattr(window, "mode_toggle")
         assert window.terminal is not None
         assert window.browser_panel is not None
@@ -211,14 +215,44 @@ def test_transcript_settles_at_the_real_scroll_bottom(tmp_path) -> None:
          "text": f"Message {index}\n" + ("long content " * 20)}
         for index in range(20)
     ], tmp_path)
-    deadline = time.monotonic() + 0.2
+    # The eased scroll animation may still be in flight; pump until the view
+    # settles (bounded), then require it to sit exactly at the bottom.
+    bar = transcript.verticalScrollBar()
+    deadline = time.monotonic() + 2.0
     while time.monotonic() < deadline:
         app.processEvents()
         time.sleep(0.01)
-    bar = transcript.verticalScrollBar()
+        if (time.monotonic() - deadline > -1.7 and bar.maximum() > 0
+                and bar.value() == bar.maximum()):
+            break
     try:
         assert bar.maximum() > 0
         assert bar.value() == bar.maximum()
     finally:
         transcript.close()
         app.processEvents()
+
+
+def test_pty_key_sequences_cover_shell_essentials() -> None:
+    QApplication.instance() or QApplication([])
+    from PySide6.QtCore import QEvent
+    from PySide6.QtGui import QKeyEvent
+
+    from harness.native.widgets import _pty_sequence
+
+    def make(key, modifiers=Qt.KeyboardModifier.NoModifier, text=""):
+        return QKeyEvent(QEvent.Type.KeyPress, key, modifiers, text)
+
+    assert _pty_sequence(make(Qt.Key.Key_Tab)) == "\t"
+    assert _pty_sequence(make(Qt.Key.Key_Return)) == "\r"
+    assert _pty_sequence(make(Qt.Key.Key_Backspace)) == "\x7f"
+    assert _pty_sequence(make(Qt.Key.Key_Up)) == "\x1b[A"
+    assert _pty_sequence(
+        make(Qt.Key.Key_C, Qt.KeyboardModifier.ControlModifier)) == "\x03"
+    # the copy/paste chords stay with the widget, not the shell
+    assert _pty_sequence(make(
+        Qt.Key.Key_C,
+        Qt.KeyboardModifier.ControlModifier
+        | Qt.KeyboardModifier.ShiftModifier)) is None
+    assert _pty_sequence(make(Qt.Key.Key_A, text="a")) == "a"
+    assert _pty_sequence(make(Qt.Key.Key_F35)) is None

@@ -546,6 +546,7 @@ def _redact_control_url(url: str) -> str:
 def control(action: str, *, url: str | None = None, ref: str | None = None,
             text: str | None = None, key: str | None = None,
             direction: str = "down", amount: int = 650,
+            x: float | None = None, y: float | None = None,
             wait_ms: int = 500, screenshot_dir: Path | None = None,
             stop_event: threading.Event | None = None) -> str:
     """Operate one persistent, sandboxed browser page and return fresh state.
@@ -553,13 +554,22 @@ def control(action: str, *, url: str | None = None, ref: str | None = None,
     The returned MCP-compatible image marker lets the existing agent image
     pipeline attach the screenshot to vision-capable models without adding a
     second image protocol.
+
+    ``click_at`` and ``type_text`` exist for the native browser panel, which
+    interacts with the live screenshot by viewport coordinates and keyboard
+    instead of semantic refs.
     """
     allowed = {"open", "state", "click", "type", "press", "select",
-               "scroll", "back", "forward", "reload", "wait", "screenshot"}
+               "scroll", "back", "forward", "reload", "wait", "screenshot",
+               "click_at", "type_text"}
     if action not in allowed:
         return f"Error: unknown browser action {action!r}."
     if action == "open" and not url:
         return "Error: browser open requires url."
+    if action == "click_at" and (x is None or y is None):
+        return "Error: browser click_at requires x and y."
+    if action == "type_text" and not text:
+        return "Error: browser type_text requires text."
     safe_url: str | None = None
     if action == "open":
         try:
@@ -590,6 +600,13 @@ def control(action: str, *, url: str | None = None, ref: str | None = None,
             if not key:
                 raise ValueError("browser press requires key")
             page.keyboard.press(key)
+        elif action == "click_at":
+            size = page.viewport_size or {"width": 1280, "height": 720}
+            page.mouse.click(
+                min(max(float(x), 0.0), size["width"] - 1),
+                min(max(float(y), 0.0), size["height"] - 1))
+        elif action == "type_text":
+            page.keyboard.type(str(text), delay=12)
         elif action == "scroll":
             delta = amount if direction == "down" else -amount
             if direction in {"left", "right"}:

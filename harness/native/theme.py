@@ -24,6 +24,11 @@ DARK = {
 }
 
 
+# Colors of the currently applied theme, for widgets that paint document
+# content (markdown code blocks, tables) rather than using QSS.
+CURRENT: dict[str, str] = dict(DARK)
+
+
 def current_theme() -> str:
     return str(QSettings("LittleHarness", "LittleHarness").value(
         "theme", "dark"))
@@ -40,6 +45,8 @@ def apply_theme(app: QApplication, name: str) -> None:
                                     "DejaVu Serif") if item in available), family)
     colors["ui_font"] = family
     colors["serif_font"] = serif
+    CURRENT.clear()
+    CURRENT.update(colors)
     app.setFont(QFont(family, 10))
     QSettings("LittleHarness", "LittleHarness").setValue("theme", name)
     palette = QPalette()
@@ -52,8 +59,26 @@ def apply_theme(app: QApplication, name: str) -> None:
     palette.setColor(QPalette.ColorRole.ButtonText, QColor(colors["text"]))
     palette.setColor(QPalette.ColorRole.Highlight, QColor(colors["accent"]))
     palette.setColor(QPalette.ColorRole.HighlightedText, QColor("#ffffff"))
+    # Ported from the web client: links and placeholders must follow the
+    # theme, not Qt's blue/gray defaults (unreadable on the dark palette).
+    palette.setColor(QPalette.ColorRole.Link, QColor(colors["accent"]))
+    palette.setColor(QPalette.ColorRole.LinkVisited, QColor(colors["accent_hover"]))
+    palette.setColor(QPalette.ColorRole.PlaceholderText, QColor(colors["faint"]))
+    palette.setColor(QPalette.ColorRole.Mid, QColor(colors["muted"]))
+    palette.setColor(QPalette.ColorRole.ToolTipBase, QColor(colors["raised"]))
+    palette.setColor(QPalette.ColorRole.ToolTipText, QColor(colors["text"]))
+    from .icons import retint_default_icons, set_default_icon_color
+    set_default_icon_color(colors["muted"])
     app.setPalette(palette)
     app.setStyleSheet(STYLE.format(**colors))
+    # Re-polish live widgets: swapping the app stylesheet at runtime leaves
+    # some already-styled frames (e.g. the custom title bar) on the previous
+    # theme until they are explicitly unpolished.
+    for widget in app.allWidgets():
+        app.style().unpolish(widget)
+        app.style().polish(widget)
+        widget.update()
+    retint_default_icons()
 
 
 STYLE = """
@@ -71,7 +96,7 @@ QProgressBar {{ background: {soft}; border: none; border-radius: 2px; }}
 QProgressBar::chunk {{ background: {accent}; border-radius: 2px; }}
 QFrame#sidebar {{ background: {panel}; border-right: 1px solid {border}; }}
 QFrame#topBar {{ background: {bg}; border-bottom: 1px solid {border}; }}
-QFrame#composerFrame {{ background: {raised}; border: 1px solid {border}; border-radius: 16px; }}
+QFrame#composerFrame {{ background: {raised}; border: 1px solid {border}; border-radius: 22px; }}
 QFrame#composerFrame QPlainTextEdit {{ background: transparent; border: none; padding: 3px; }}
 QFrame#rightPanel {{ background: {panel}; border-left: 1px solid {border}; }}
 QPushButton, QToolButton {{ border: none; border-radius: 7px; padding: 6px 9px; background: transparent; }}
@@ -106,7 +131,7 @@ QListWidget#sessionList::item {{ border-radius: 8px; padding: 8px 9px; color: {m
 QListWidget#sessionList::item:hover {{ background: {soft}; color: {text}; }}
 QListWidget#sessionList::item:selected {{ background: {user}; color: {text}; }}
 QFrame#userBubble {{ background: {user}; border-radius: 14px; max-width: 650px; }}
-QLabel#steerBubble {{ background: {accent_soft}; border: 1px solid {accent}; border-radius: 11px; padding: 8px 11px; }}
+QFrame#steerBubble {{ background: {accent_soft}; border: 1px solid {accent}; border-radius: 11px; max-width: 650px; }}
 QFrame#reasoningCard {{ border-left: 2px solid {border}; background: transparent; }}
 QTextBrowser#markdownView {{ background: transparent; border: none; }}
 QScrollArea#transcript, QWidget#transcriptViewport, QWidget#transcriptCanvas {{ background: {bg}; }}
@@ -118,10 +143,17 @@ QFrame#suggestion:hover {{ border-color: {accent}; background: {raised}; }}
 QLabel#suggestionTitle {{ font-size: 13px; font-weight: 650; }}
 QLabel#suggestionDetail {{ color: {muted}; font-size: 12px; }}
 QFrame#toolCard {{ background: {panel}; border: 1px solid {border}; border-radius: 10px; }}
+QFrame#toolCard QPlainTextEdit {{ background: {code}; border: 1px solid {border}; border-radius: 8px; font-family: "Cascadia Mono", "Consolas", monospace; font-size: 12px; }}
+QTextBrowser#diffView {{ background: {code}; border: 1px solid {border}; border-radius: 8px; padding: 4px; }}
 QToolButton#toolToggle {{ text-align: left; font-family: "Cascadia Code", monospace; }}
 QLabel#notice {{ color: {muted}; background: {soft}; border-radius: 7px; padding: 6px 9px; }}
 QLabel#errorNotice {{ color: {error}; background: {soft}; border-radius: 7px; padding: 7px 9px; }}
-QLabel#activity {{ color: {accent}; padding: 6px; }}
+QLabel#activity {{ color: {muted}; font-style: italic; }}
+QFrame#welcomeHost {{ background: {bg}; }}
+QPushButton#promptPill {{ border: 1px solid {border}; border-radius: 16px; background: {panel}; color: {muted}; padding: 7px 14px; font-size: 12px; }}
+QPushButton#promptPill:hover {{ border-color: {accent}; color: {text}; background: {raised}; }}
+QFrame#composerModelSelect {{ background: transparent; border: none; }}
+QFrame#composerModelSelect:hover {{ background: {soft}; border-radius: 9px; }}
 QPushButton#attachmentTile {{ border: 1px solid {border}; background: {panel}; text-align: left; }}
 QLabel#settingsHealth {{ background: {code}; color: {muted}; border-radius: 9px; padding: 10px; }}
 QLabel#settingsError {{ background: {accent_soft}; color: {error}; border-radius: 9px; padding: 10px; }}
@@ -134,4 +166,9 @@ QScrollArea {{ background: {bg}; border: none; }}
 QScrollBar:vertical {{ width: 9px; background: transparent; }}
 QScrollBar::handle:vertical {{ background: {border}; border-radius: 4px; min-height: 30px; }}
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0; }}
+QScrollBar:horizontal {{ height: 9px; background: transparent; }}
+QScrollBar::handle:horizontal {{ background: {border}; border-radius: 4px; min-width: 30px; }}
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{ width: 0; }}
+QLabel#composerHint {{ color: {faint}; font-size: 11px; }}
+QToolTip {{ background: {raised}; color: {text}; border: 1px solid {border}; padding: 4px 7px; }}
 """

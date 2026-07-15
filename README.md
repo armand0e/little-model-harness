@@ -125,13 +125,17 @@ still available for formats that need full editing fidelity.
 
 ### Built-in terminal and managed browser
 
-Code mode includes a persistent native terminal panel rooted at the current
-workspace. It uses PowerShell on Windows and the user's shell on macOS/Linux,
-streams output, and supports clear/restart without spawning a separate console
-window.
+Code mode includes a real terminal panel rooted at the current workspace: a
+ConPTY-backed PowerShell on Windows and a pty-backed shell on macOS/Linux,
+emulated with pyte. Type directly into it — tab completion, arrow history,
+Ctrl+C/Ctrl+R, and interactive redraws behave like a normal terminal, with
+Ctrl+Shift+C/V for copy and paste, scrollback, clear, and restart. If the PTY
+backend is unavailable, a simpler pipe-based prompt is used instead.
 
 The managed Browser panel and the model-facing `browser` tool share a
-persistent Chromium profile. Browser actions return:
+persistent Chromium profile. The panel is directly interactive: click,
+scroll, and type on the live page image, or use the address bar. Browser
+actions return:
 
 - the current URL and title;
 - compact visible page text;

@@ -6,11 +6,35 @@ are rendered from one SVG path set by Qt instead.
 """
 from __future__ import annotations
 
+import weakref
 from html import escape
 
 from PySide6.QtCore import QByteArray, QRectF, QSize, Qt
 from PySide6.QtGui import QIcon, QPainter, QPixmap
 from PySide6.QtSvg import QSvgRenderer
+
+# Default chrome-icon color follows the active theme's muted text color.
+# Widgets that accept the default are recorded so a theme switch can retint
+# them in place; explicit colors (accents, white-on-primary) are kept as-is.
+_DEFAULT_COLOR = "#a3a094"
+_REGISTRY: "weakref.WeakKeyDictionary[object, tuple[str, int, str | None]]" = (
+    weakref.WeakKeyDictionary())
+
+
+def set_default_icon_color(color: str) -> None:
+    global _DEFAULT_COLOR
+    _DEFAULT_COLOR = color
+
+
+def retint_default_icons() -> None:
+    """Re-render every registered default-colored icon in the new theme."""
+    for widget, (name, size, explicit) in list(_REGISTRY.items()):
+        if explicit is not None:
+            continue
+        try:
+            widget.setIcon(svg_icon(name, size, _DEFAULT_COLOR))
+        except RuntimeError:
+            pass  # underlying C++ widget already deleted
 
 
 PATHS = {
@@ -53,7 +77,8 @@ PATHS = {
 }
 
 
-def svg_bytes(name: str, color: str = "#a3a094") -> QByteArray:
+def svg_bytes(name: str, color: str | None = None) -> QByteArray:
+    color = color or _DEFAULT_COLOR
     body = PATHS[name].format(color=escape(color, quote=True))
     source = (
         '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" '
@@ -63,7 +88,7 @@ def svg_bytes(name: str, color: str = "#a3a094") -> QByteArray:
     return QByteArray(source.encode("utf-8"))
 
 
-def svg_pixmap(name: str, size: int = 18, color: str = "#a3a094") -> QPixmap:
+def svg_pixmap(name: str, size: int = 18, color: str | None = None) -> QPixmap:
     renderer = QSvgRenderer(svg_bytes(name, color))
     ratio = 2
     pixmap = QPixmap(size * ratio, size * ratio)
@@ -75,13 +100,17 @@ def svg_pixmap(name: str, size: int = 18, color: str = "#a3a094") -> QPixmap:
     return pixmap
 
 
-def svg_icon(name: str, size: int = 18, color: str = "#a3a094") -> QIcon:
+def svg_icon(name: str, size: int = 18, color: str | None = None) -> QIcon:
     icon = QIcon(svg_pixmap(name, size, color))
     icon.addPixmap(svg_pixmap(name, size, color), QIcon.Mode.Active)
     return icon
 
 
 def set_svg_icon(widget, name: str, size: int = 18,
-                 color: str = "#a3a094") -> None:
+                 color: str | None = None) -> None:
     widget.setIcon(svg_icon(name, size, color))
     widget.setIconSize(QSize(size, size))
+    try:
+        _REGISTRY[widget] = (name, size, color)
+    except TypeError:
+        pass  # non-weakref-able widget: it simply keeps its current tint

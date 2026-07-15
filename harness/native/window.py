@@ -46,8 +46,9 @@ from .widgets import (
     JobWatcher,
     SelectButton,
     SessionList,
-    TerminalWidget,
     TranscriptView,
+    WelcomePanel,
+    create_terminal,
 )
 
 
@@ -100,6 +101,7 @@ class TitleBar(QFrame):
 
 class MainWindow(QMainWindow):
     models_ready = Signal(list)
+    models_failed = Signal(str)
     background_error = Signal(str)
 
     def __init__(self, service: HarnessService) -> None:
@@ -121,6 +123,7 @@ class MainWindow(QMainWindow):
         self.setObjectName("root")
         self._build()
         self.models_ready.connect(self._populate_models)
+        self.models_failed.connect(self._models_unavailable)
         self.background_error.connect(self._show_error)
         self.refresh_timer = QTimer(self)
         self.refresh_timer.timeout.connect(self.refresh_sessions)
@@ -148,7 +151,9 @@ class MainWindow(QMainWindow):
         self.body_splitter.setStretchFactor(1, 1)
         self.body_splitter.setStretchFactor(2, 0)
         self.body_splitter.setSizes([270, 800, 310])
-        self.sidebar.setFixedWidth(268)
+        # The splitter handle advertises resizing, so honor it: the sidebar
+        # is draggable between 220 and 400 pixels rather than fixed.
+        self.sidebar.setMaximumWidth(400)
         self.right_panel.setMinimumWidth(300)
         self.right_panel.setMaximumWidth(600)
         self.right_panel.hide()
@@ -260,7 +265,10 @@ class MainWindow(QMainWindow):
         self.sidebar_toggle.hide()
         self.chat_title = QLabel("New task")
         self.chat_title.setObjectName("chatTitle")
-        self.model_select = SelectButton(minimum_width=122)
+        self.model_select = SelectButton(minimum_width=90)
+        # Styled as quiet inline text inside the composer, like the Claude
+        # client's model picker.
+        self.model_select.setObjectName("composerModelSelect")
         self.model_select.changed.connect(self._model_changed)
         self.export_button = IconButton("download", "Export conversation", size=16)
         self.export_button.clicked.connect(self.export_conversation)
@@ -276,7 +284,6 @@ class MainWindow(QMainWindow):
         self.about_button.clicked.connect(lambda: AboutNativeDialog(self).exec())
         top_layout.addWidget(self.sidebar_toggle)
         top_layout.addWidget(self.chat_title, 1)
-        top_layout.addWidget(self.model_select)
         top_layout.addWidget(self.export_button)
         top_layout.addWidget(self.artifact_button)
         top_layout.addWidget(self.files_button)
@@ -293,7 +300,12 @@ class MainWindow(QMainWindow):
         self.transcript.regenerate_requested.connect(
             lambda index: self._redo_from(index, regenerate=True))
         layout.addWidget(self.transcript, 1)
+        self.welcome_host = WelcomePanel()
+        self.welcome_host.prompt_selected.connect(self._use_suggestion)
+        self.welcome_host.hide()
+        layout.addWidget(self.welcome_host, 1)
         layout.addWidget(self._build_composer())
+        self._composer_in_welcome = False
         return center
 
     def _build_composer(self) -> QWidget:
@@ -350,11 +362,13 @@ class MainWindow(QMainWindow):
         self.send_button.setObjectName("primary")
         self.send_button.clicked.connect(self.send)
         self.composer_hint = QLabel("Enter to send · Shift+Enter for a new line")
-        self.composer_hint.setStyleSheet("color: palette(mid); font-size: 11px")
+        self.composer_hint.setObjectName("composerHint")
         row.addWidget(self.attach_button)
         row.addWidget(self.composer_hint)
         row.addStretch(1)
         row.addWidget(self.send_action)
+        # The model pill lives with the composer, like the web client.
+        row.addWidget(self.model_select)
         row.addWidget(self.stop_button)
         row.addWidget(self.send_button)
         layout.addLayout(row)
@@ -363,8 +377,32 @@ class MainWindow(QMainWindow):
         centered.addStretch(1)
         centered.addWidget(self.composer_column)
         centered.addStretch(1)
+        self._composer_bottom_slot = centered
+        self._composer_bottom_wrap = wrap
         wrap_layout.addLayout(centered)
         return wrap
+
+    def _set_composer_home(self, welcome: bool) -> None:
+        """Empty conversations center the composer under the greeting, like
+        the Claude desktop client; the first message docks it to the bottom."""
+        if welcome != self._composer_in_welcome:
+            self._composer_in_welcome = welcome
+            if welcome:
+                self.welcome_host.composer_slot.addWidget(self.composer_column)
+            else:
+                self._composer_bottom_slot.insertWidget(1, self.composer_column)
+        if welcome:
+            self.welcome_host.refresh(self.mode)
+        self.welcome_host.setVisible(welcome)
+        self.transcript.setVisible(not welcome)
+        self._composer_bottom_wrap.setVisible(not welcome)
+        self.composer_column.show()
+        self._layout_responsive()
+        self.composer.setFocus()
+        placeholders = {"research": "What should I research in depth?"}
+        self.composer.setPlaceholderText(
+            placeholders.get(self.mode, "How can I help you today?")
+            if welcome else "Reply to Little Harness…")
 
     def _build_right_panel(self) -> QWidget:
         panel = QFrame()
@@ -404,9 +442,13 @@ class MainWindow(QMainWindow):
         self.file_tree.customContextMenuRequested.connect(self._file_menu)
         files_layout.addWidget(self.file_tree)
         self.skills_list = QListWidget()
+        self.skills_list.setWordWrap(True)
+        self.skills_list.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.skills_list.setSpacing(3)
         self.memory_view = QPlainTextEdit()
         self.memory_view.setReadOnly(True)
-        self.terminal = TerminalWidget()
+        self.terminal = create_terminal()
         self.browser_panel = BrowserPanel()
         self.right_tabs.addWidget(self.artifact_preview)
         self.right_tabs.addWidget(self.files_tab)
@@ -435,19 +477,13 @@ class MainWindow(QMainWindow):
         self.chat_nav.setChecked(mode == "chat")
         self.research_nav.setChecked(mode == "research")
         labels = {
-            "agent": ("New code task", "CODE HISTORY",
-                      "Search code history…", "New task",
-                      "Message Little Harness…"),
-            "chat": ("New chat", "CHAT HISTORY",
-                     "Search chat history…", "New chat",
-                     "Message Little Harness…"),
-            "research": ("New research", "RESEARCH HISTORY",
-                         "Search research history…", "New research",
-                         "What should I research in depth?"),
+            "agent": ("New code task", "Search code tasks…", "New task"),
+            "chat": ("New chat", "Search chats…", "New chat"),
+            "research": ("New research", "Search research…", "New research"),
         }[mode]
         self.new_button.setText(labels[0])
-        self.history_label.setText(labels[1])
-        self.search.setPlaceholderText(labels[2])
+        self.history_label.setText("RECENTS")
+        self.search.setPlaceholderText(labels[1])
         if mode != "agent":
             self.right_panel.hide()
         self.workspace_button.setVisible(mode in {"agent", "research"})
@@ -457,9 +493,10 @@ class MainWindow(QMainWindow):
         self.terminal_button.setVisible(mode == "agent")
         self.browser_button.setVisible(mode == "agent")
         self.current_id = None
+        self.transcript.mode = mode
         self.transcript.render_display([], Path.cwd())
-        self.chat_title.setText(labels[3])
-        self.composer.setPlaceholderText(labels[4])
+        self.chat_title.setText(labels[2])
+        self._set_composer_home(True)
         self.refresh_sessions(open_latest=True)
 
     def refresh_sessions(self, open_latest: bool = False) -> None:
@@ -528,6 +565,10 @@ class MainWindow(QMainWindow):
         self.transcript.render_display(session.get("display", []), workspace)
         for event in self.live_events.get(sid, []):
             self.transcript.apply_event(event)
+        self._set_composer_home(not session.get("display")
+                                and not self.live_events.get(sid)
+                                and not session.get("running")
+                                and not session.get("queued"))
         context = session.get("context", {})
         ceiling = context.get("compact_threshold") or context.get("window") or 1
         used = context.get("estimated_tokens") or context.get("last_prompt_tokens") or 0
@@ -601,6 +642,7 @@ class MainWindow(QMainWindow):
         if sid == self.current_id:
             self.current_id = None
             self.transcript.render_display([], Path.cwd())
+            self._set_composer_home(True)
         self.refresh_sessions(open_latest=True)
 
     # ---------- generation ----------
@@ -636,6 +678,7 @@ class MainWindow(QMainWindow):
             self._discard_pasted_temp(path)
         self.attachments.clear()
         self._render_attachment_chips()
+        self._set_composer_home(False)
         self.refresh_sessions()
 
     def _use_suggestion(self, prompt: str) -> None:
@@ -680,19 +723,54 @@ class MainWindow(QMainWindow):
         document_height = int(self.composer.document().size().height())
         self.composer.setFixedHeight(max(48, min(150, document_height + 16)))
 
+    def _animate_panel(self, panel, show: bool, width: int,
+                       minimum: int, maximum: int) -> None:
+        from PySide6.QtCore import QEasingCurve, QPropertyAnimation
+        previous = getattr(panel, "_lmh_width_anim", None)
+        if previous is not None:
+            previous.stop()
+        panel.setMinimumWidth(0)
+        start = panel.width() if panel.isVisible() else 0
+        if show:
+            panel.setMaximumWidth(max(1, start))
+            panel.show()
+        animation = QPropertyAnimation(panel, b"maximumWidth", self)
+        animation.setDuration(170)
+        animation.setEasingCurve(QEasingCurve.Type.OutCubic)
+        animation.setStartValue(start)
+        animation.setEndValue(width if show else 0)
+
+        def finish() -> None:
+            if not show:
+                panel.hide()
+            panel.setMinimumWidth(minimum)
+            panel.setMaximumWidth(maximum)
+
+        animation.finished.connect(finish)
+        panel._lmh_width_anim = animation
+        animation.start()
+
     def toggle_sidebar(self, visible: bool) -> None:
-        self.sidebar.setVisible(visible)
+        self._animate_panel(self.sidebar, visible,
+                            width=max(240, self.sidebar.width() or 270),
+                            minimum=220, maximum=400)
         self.sidebar_toggle.setVisible(not visible)
 
     def toggle_right_panel(self, tab: int = 0) -> None:
         if self.mode == "chat":
             return
         if self.right_panel.isVisible() and self.right_tabs.currentIndex() == tab:
-            self.right_panel.hide()
+            self._animate_panel(self.right_panel, False,
+                                width=0, minimum=300, maximum=600)
             return
+        already_visible = self.right_panel.isVisible()
         self._set_right_index(tab)
-        self.right_panel.show()
+        if not already_visible:
+            self._animate_panel(self.right_panel, True,
+                                width=340, minimum=300, maximum=600)
         self.refresh_right_panel()
+        if tab == 4:
+            self.terminal.input.setFocus()
 
     def export_conversation(self) -> None:
         if not self.current_id:
@@ -869,6 +947,9 @@ class MainWindow(QMainWindow):
             layout.addWidget(remove)
             self.followup_list.addItem(list_item)
             self.followup_list.setItemWidget(list_item, row)
+        # Fit the list to its rows; a fixed 95px box around one queued
+        # message reads as an empty panel.
+        self.followup_list.setFixedHeight(min(95, len(messages) * 40 + 6))
         self.followup_list.setVisible(bool(messages))
 
     def _delete_followup(self, message_id: str) -> None:
@@ -1009,8 +1090,22 @@ class MainWindow(QMainWindow):
             try:
                 self.models_ready.emit(self.service.models())
             except ServiceError as exc:
-                self.background_error.emit(f"Could not load models: {exc}")
+                # An offline model server must not greet the user with a
+                # modal error box; the pill falls back to the configured ID.
+                self.models_failed.emit(str(exc))
         threading.Thread(target=load, name="lmh-native-model-list", daemon=True).start()
+
+    def _models_unavailable(self, error: str) -> None:
+        selected = ""
+        try:
+            selected = str(self.service.settings().get("model", ""))
+        except ServiceError:
+            pass
+        self.model_select.set_options(
+            [(selected or "model", selected)], selected)
+        self.model_select.setToolTip(
+            "The model endpoint did not answer a model listing; using the "
+            f"configured ID. {error}")
 
     def _populate_models(self, models: list[dict]) -> None:
         selected = self.service.settings().get("model", "")
