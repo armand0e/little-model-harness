@@ -1,7 +1,14 @@
 # Little Harness
 
 Little Harness turns a small local OpenAI-compatible model into a practical
-desktop agent. It can chat, work in a repository, create office documents,
+desktop agent.
+
+> **Direction (2026-07):** the desktop UI is moving to an Electron shell
+> (`electron/`) that renders the built-in web client over the Python
+> sidecar's HTTP+SSE API (`--server-only`). All agent features live in the
+> Python backend and are UI-independent. The PySide6 client under
+> `harness/native/` still works but is frozen. Dev run:
+> `cd electron && npm install && npm start`. It can chat, work in a repository, create office documents,
 inspect the web, operate public websites, use a terminal, control desktop
 applications, call MCP servers, and verify the artifacts it creates.
 
