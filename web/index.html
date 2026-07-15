@@ -2411,22 +2411,19 @@ async function consumeTurnStream(state, resp) {
 }
 
 function notifyTurnDone(sid) {
-  if (document.hasFocus() || !("Notification" in window)) return;
+  // Never prompt for permission (the app-native-dialog contract bans
+  // browser popups). Electron grants it implicitly; plain browsers only
+  // notify if the user enabled it in site settings themselves.
+  if (document.hasFocus() || !("Notification" in window)
+      || Notification.permission !== "granted") return;
   const title = (sessions.find(s => s.id === sid) || {}).title || "Chat";
-  const show = () => {
-    const n = new Notification("Little Harness", {
-      body: `Finished: ${title}`, tag: "lmh-turn-" + sid });
-    n.onclick = () => {
-      window.focus();
-      if (currentId !== sid) openSession(sid).catch(() => {});
-      n.close();
-    };
+  const n = new Notification("Little Harness", {
+    body: `Finished: ${title}`, tag: "lmh-turn-" + sid });
+  n.onclick = () => {
+    window.focus();
+    if (currentId !== sid) openSession(sid).catch(() => {});
+    n.close();
   };
-  if (Notification.permission === "granted") show();
-  else if (Notification.permission === "default")
-    Notification.requestPermission().then(p => {
-      if (p === "granted") show();
-    }).catch(() => {});
 }
 
 async function finishTurnStream(state) {
