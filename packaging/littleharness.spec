@@ -39,11 +39,17 @@ ICON = (os.path.join(SPECPATH, "littleharness.ico") if is_windows
 
 # PyInstaller's Qt hook follows the statically imported PySide6 modules and
 # their required plugins. Collecting all of PySide6 would also pull unused
-# modules such as WebEngine into this deliberately non-webview application.
-# The remaining libraries are used by skill helper scripts (run via
-# `--runpy`), so bundle those explicitly.
+# modules such as WebEngine (the browser panel embeds Playwright's real
+# Chromium window instead). The remaining libraries are used by the terminal
+# emulator and skill helper scripts (run via `--runpy`), so bundle those
+# explicitly.
 collect_pkgs = ["docx", "openpyxl", "pptx", "pypdf", "fitz",
-                "PIL", "pyautogui", "pygetwindow", "playwright", "mcp"]
+                "PIL", "pyautogui", "pygetwindow", "playwright", "mcp",
+                "pyte"]
+if is_windows:
+    # ConPTY backend for the native terminal: winpty ships native DLLs that
+    # static analysis misses, which left v2.3.0's packaged terminal dead.
+    collect_pkgs += ["winpty"]
 if is_macos:
     # pyobjc frameworks the computer skill's permission preflight and
     # pyautogui need at runtime

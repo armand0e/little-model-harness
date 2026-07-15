@@ -206,7 +206,8 @@ class _BrowserWorker:
                         out.put(("ok", fn(ctx)))
                     except Exception as e:
                         out.put(("err", f"{type(e).__name__}: {e}"))
-                ctx.close()
+                if not getattr(self, "_attached_over_cdp", False):
+                    ctx.close()  # never close the user's embedded browser
         except Exception as e:
             self.status = "unavailable"
             self._drain(str(e))
@@ -223,15 +224,23 @@ class _BrowserWorker:
                 return
 
     def _launch(self, pw):
+        import os
+        # The native browser panel embeds this Chromium's real window
+        # (Windows reparenting), so it runs headful when the app asks.
+        # QtWebEngine + connect_over_cdp was tried and is a dead end:
+        # Playwright requires browser-context management its CDP lacks.
+        headful = os.environ.get("LMH_HEADFUL_BROWSER") == "1"
+        before = _chromium_windows() if headful else set()
         PROFILE_DIR.mkdir(parents=True, exist_ok=True)
         opts = dict(
-            headless=True,
+            headless=not headful,
             viewport={"width": 1280, "height": 900},
             locale="en-US",
             timezone_id="America/New_York",
             user_agent=STEALTH_UA,
             extra_http_headers=CLIENT_HINTS,
-            args=["--disable-blink-features=AutomationControlled"],
+            args=["--disable-blink-features=AutomationControlled"]
+            + (["--window-size=1280,960"] if headful else []),
         )
         ctx = None
         # real installed browsers first: genuine UA + client hints, no download
@@ -248,6 +257,18 @@ class _BrowserWorker:
                 continue
         if ctx is None:
             raise RuntimeError("no Chromium-family browser available")
+        if headful:
+            # Identify OUR window by diffing top-level Chromium windows
+            # around launch: titles change with navigation, so title
+            # matching cannot work.
+            global _EMBED_HWND
+            deadline = time.time() + 6.0
+            while time.time() < deadline and _EMBED_HWND is None:
+                fresh = _chromium_windows() - before
+                if fresh:
+                    _EMBED_HWND = sorted(fresh)[0]
+                    break
+                time.sleep(0.2)
         ctx.add_init_script(STEALTH_INIT)
         ctx.set_default_timeout(NAV_TIMEOUT)
 
@@ -311,6 +332,37 @@ _worker = _BrowserWorker()
 
 def close() -> None:
     _worker.close()
+
+
+_EMBED_HWND: int | None = None
+
+
+def embedded_window_handle() -> int | None:
+    """HWND of the headful Chromium window, for the native panel to embed."""
+    return _EMBED_HWND
+
+
+def _chromium_windows() -> set[int]:
+    """Visible top-level Chromium windows (Windows only)."""
+    import sys
+    if sys.platform != "win32":
+        return set()
+    import ctypes
+    from ctypes import wintypes
+    user32 = ctypes.windll.user32
+    found: set[int] = set()
+
+    @ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+    def visit(hwnd, _lparam):
+        if user32.IsWindowVisible(hwnd):
+            buffer = ctypes.create_unicode_buffer(64)
+            user32.GetClassNameW(hwnd, buffer, 64)
+            if buffer.value.startswith("Chrome_WidgetWin"):
+                found.add(int(hwnd))
+        return True
+
+    user32.EnumWindows(visit, 0)
+    return found
 
 
 def available() -> bool:
@@ -500,6 +552,11 @@ def _control_url(url: str) -> str:
 
 def _control_page(ctx):
     pages = [page for page in ctx.pages if not page.is_closed()]
+    # Skip empty/devtools tabs: with the embedded browser the interesting
+    # page is the one the user is actually looking at, not a stray blank.
+    for page in reversed(pages):
+        if not page.url.startswith(("about:", "devtools:", "chrome:")):
+            return page
     if pages:
         return pages[-1]
     return ctx.new_page()

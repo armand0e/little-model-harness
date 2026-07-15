@@ -32,7 +32,8 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from .agent import Agent
 from .config import (DATA_DIR, ROOT, SESSIONS_DIR, get_default_workspace,
-                     load_config, save_user_settings, set_default_workspace)
+                     load_config, load_user_settings, save_user_settings,
+                     set_default_workspace)
 from .preview import OFFICE_EXTS, PREVIEWABLE, build_preview, validate_office_archive
 from .mcp_client import (BUILTIN_COMPUTER_SERVER, MCP_HUB,
                          computer_backend_info, load_mcp_servers,
@@ -433,6 +434,8 @@ class SettingsBody(BaseModel):
     model: str | None = None
     context_window: int | None = None
     mcp_servers: dict[str, dict] | None = None
+    ui_font_px: int | None = None
+    global_rules: str | None = None
 
 
 @app.get("/api/settings")
@@ -455,6 +458,8 @@ def get_settings():
             "mcp_servers": load_user_mcp_servers(),
             "mcp_status": MCP_HUB.status(),
             "computer_control": _computer_control_status(),
+            "ui_font_px": load_user_settings().get("ui_font_px", 13),
+            "global_rules": str(load_user_settings().get("global_rules", "")),
             "background": refresh}
 
 
@@ -648,8 +653,26 @@ def set_settings(body: SettingsBody):
                 or parsed.password is not None):
             raise HTTPException(400, "model endpoint must be an http(s) URL without credentials")
     model = CFG.model
-    if body.model is not None and body.model.strip():
-        model = body.model.strip()
+    if body.model is not None:
+        if body.model.strip():
+            model = body.model.strip()
+        else:
+            # Blank means "auto": use whatever the endpoint reports first.
+            try:
+                candidates = _fetch_models(base_url, CFG.api_key
+                                           if body.api_key is None
+                                           else (body.api_key.strip()
+                                                 or "not-needed"))
+                if candidates:
+                    model = candidates[0]["id"]
+            except Exception:
+                pass  # endpoint offline: keep the current model id
+    ui_font_px = None
+    if body.ui_font_px is not None:
+        ui_font_px = max(11, min(17, int(body.ui_font_px)))
+    global_rules = None
+    if body.global_rules is not None:
+        global_rules = body.global_rules.strip()[:4000]
     api_key = CFG.api_key
     if body.api_key is not None:  # empty string clears the key
         api_key = body.api_key.strip() or "not-needed"
@@ -685,7 +708,11 @@ def set_settings(body: SettingsBody):
                             "api_key": api_key,
                             "context_window": context_window,
                             "mcp_servers": user_mcp_servers,
-                            **({"workspace": str(workspace)} if workspace else {})})
+                            **({"workspace": str(workspace)} if workspace else {}),
+                            **({"ui_font_px": ui_font_px}
+                               if ui_font_px is not None else {}),
+                            **({"global_rules": global_rules}
+                               if global_rules is not None else {})})
     except OSError as exc:
         raise HTTPException(500, f"could not save settings: {exc}")
 

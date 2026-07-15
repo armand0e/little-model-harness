@@ -4,12 +4,12 @@ from __future__ import annotations
 import json
 import threading
 
-from PySide6.QtCore import QTimer, Signal
+from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtWidgets import (
+    QComboBox,
     QDialog,
     QDialogButtonBox,
     QDoubleSpinBox,
-    QFormLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -26,26 +26,32 @@ from .widgets import WheelGuard
 
 class SettingsDialog(QDialog):
     save_finished = Signal(object, str)
+    models_listed = Signal(list)
 
     def __init__(self, service: HarnessService, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.service = service
         self.setWindowTitle("Settings")
         self.setModal(True)
-        self.setMinimumSize(590, 620)
+        self.setMinimumSize(590, 700)
         self.setObjectName("settingsDialog")
         outer = QVBoxLayout(self)
+        outer.setContentsMargins(22, 18, 22, 14)
+        outer.setSpacing(10)
         title = QLabel("Settings")
         title.setObjectName("dialogTitle")
         outer.addWidget(title)
-        form = QFormLayout()
-        form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
         self.temperature = QDoubleSpinBox()
         self.temperature.setRange(0, 2)
         self.temperature.setSingleStep(0.1)
         self.temperature.setDecimals(2)
         self.base_url = QLineEdit()
-        self.model = QLineEdit()
+        self.model = QComboBox()
+        self.model.setEditable(True)
+        model_editor = self.model.lineEdit()
+        if model_editor is not None:
+            model_editor.setPlaceholderText(
+                "auto — first model reported by the endpoint")
         self.api_key = QLineEdit()
         self.api_key.setEchoMode(QLineEdit.EchoMode.Password)
         self.context_window = QSpinBox()
@@ -54,26 +60,108 @@ class SettingsDialog(QDialog):
         self.max_output = QSpinBox()
         self.max_output.setRange(256, 131_072)
         self.max_output.setSingleStep(256)
+        self.font_px = QSpinBox()
+        self.font_px.setRange(11, 17)
+        self.font_px.setSuffix(" px")
+        self.rules = QPlainTextEdit()
+        self.rules.setPlaceholderText(
+            "Instructions the assistant follows in every conversation — "
+            "tone, language, formatting, house rules…")
+        self.rules.setMinimumHeight(90)
         self.mcp = QPlainTextEdit()
-        self.mcp.setMinimumHeight(150)
-        for label, widget in (
-            ("Temperature", self.temperature),
-            ("Base URL", self.base_url),
-            ("Model ID", self.model),
-            ("API key (leave blank to keep current)", self.api_key),
-            ("Context window", self.context_window),
-            ("Maximum output tokens", self.max_output),
-            ("Additional MCP servers (JSON)", self.mcp),
-        ):
-            form.addRow(label, widget)
-        self.wheel_guard = WheelGuard(self)
-        for spin in (self.temperature, self.context_window, self.max_output):
-            spin.installEventFilter(self.wheel_guard)
-        outer.addLayout(form)
+        self.mcp.setMinimumHeight(110)
+        # Modern card layout: each section is a rounded card; each row has a
+        # bold name, a muted caption, and its control — no bare form grid.
+        from PySide6.QtWidgets import QFrame, QScrollArea
+
+        content = QWidget()
+        content_layout = QVBoxLayout(content)
+        content_layout.setContentsMargins(0, 0, 6, 0)
+        content_layout.setSpacing(12)
+
+        def card(section_title: str) -> QVBoxLayout:
+            frame = QFrame()
+            frame.setObjectName("settingsCard")
+            card_layout = QVBoxLayout(frame)
+            card_layout.setContentsMargins(16, 12, 16, 14)
+            card_layout.setSpacing(10)
+            heading = QLabel(section_title)
+            heading.setObjectName("settingsCardTitle")
+            card_layout.addWidget(heading)
+            content_layout.addWidget(frame)
+            return card_layout
+
+        def row(card_layout: QVBoxLayout, name: str, caption: str,
+                widget: QWidget, *, wide: bool = False) -> None:
+            from PySide6.QtWidgets import QBoxLayout
+            block = QVBoxLayout()
+            block.setSpacing(3)
+            head: QBoxLayout = QVBoxLayout() if wide else QHBoxLayout()
+            head.setSpacing(1 if wide else 12)
+            text_column = QVBoxLayout()
+            text_column.setSpacing(1)
+            name_label = QLabel(name)
+            name_label.setObjectName("settingName")
+            caption_label = QLabel(caption)
+            caption_label.setObjectName("settingCaption")
+            caption_label.setWordWrap(True)
+            text_column.addWidget(name_label)
+            text_column.addWidget(caption_label)
+            if wide:
+                head.addLayout(text_column)
+                block.addLayout(head)
+                block.addWidget(widget)
+            else:
+                head.addLayout(text_column, 1)
+                widget.setMinimumWidth(230)
+                head.addWidget(widget, 0,
+                               Qt.AlignmentFlag.AlignVCenter)
+                block.addLayout(head)
+            card_layout.addLayout(block)
+
+        model_card = card("Model")
+        row(model_card, "Endpoint", "OpenAI-compatible base URL "
+            "(LM Studio, llama.cpp, Ollama…)", self.base_url, wide=True)
+        row(model_card, "Model", "Leave empty to use the first model the "
+            "endpoint reports", self.model)
+        row(model_card, "API key", "Only if your endpoint requires one; "
+            "blank keeps the current key", self.api_key)
+
+        generation_card = card("Generation")
+        row(generation_card, "Temperature",
+            "Lower is more focused; higher is more creative", self.temperature)
+        row(generation_card, "Context window",
+            "Clamped to what the model server actually supports",
+            self.context_window)
+        row(generation_card, "Max output tokens",
+            "Upper bound for a single response", self.max_output)
+
+        appearance_card = card("Appearance & behavior")
+        row(appearance_card, "Text size", "Applies across the whole app",
+            self.font_px)
+        row(appearance_card, "Global rules", "Instructions the assistant "
+            "follows in every conversation", self.rules, wide=True)
+
+        integrations_card = card("Integrations")
+        row(integrations_card, "MCP servers", "JSON map of external tool "
+            "servers; applied after saving", self.mcp, wide=True)
+
         self.health = QLabel()
         self.health.setWordWrap(True)
         self.health.setObjectName("settingsHealth")
-        outer.addWidget(self.health)
+        content_layout.addWidget(self.health)
+        content_layout.addStretch(1)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setWidget(content)
+        outer.addWidget(scroll, 1)
+
+        self.wheel_guard = WheelGuard(self)
+        for spin in (self.temperature, self.context_window, self.max_output,
+                     self.font_px, self.model):
+            spin.installEventFilter(self.wheel_guard)
         actions = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Close
             | QDialogButtonBox.StandardButton.Save)
@@ -88,8 +176,14 @@ class SettingsDialog(QDialog):
         self.poll_timer.timeout.connect(self.poll_health)
         self.poll_attempts = 0
         self._saving = False
+        self._closed = False
         self.save_finished.connect(self._save_complete)
+        self.models_listed.connect(self._fill_model_choices)
         self.populate()
+
+    def closeEvent(self, event) -> None:  # noqa: N802
+        self._closed = True
+        super().closeEvent(event)
 
     def reject(self) -> None:
         if self._saving:
@@ -100,10 +194,13 @@ class SettingsDialog(QDialog):
         settings = self.service.settings()
         self.temperature.setValue(float(settings["temperature"]))
         self.base_url.setText(str(settings["base_url"]))
-        self.model.setText(str(settings["model"]))
+        self.model.setCurrentText(str(settings["model"]))
+        self.font_px.setValue(int(settings.get("ui_font_px") or 13))
+        self.rules.setPlainText(str(settings.get("global_rules") or ""))
         self.context_window.setValue(int(settings["context_window"]))
         self.max_output.setValue(int(settings["max_output_tokens"]))
         self.mcp.setPlainText(json.dumps(settings.get("mcp_servers", {}), indent=2))
+        self._load_model_choices()
         effective = settings.get("effective_context_window")
         mcp_count = sum(1 for item in settings.get("mcp_status", [])
                         if item.get("state") == "ready")
@@ -113,6 +210,33 @@ class SettingsDialog(QDialog):
             f"MCP: {mcp_count} connected\n"
             f"Computer control: {computer.get('state', 'unknown')}")
 
+    def _load_model_choices(self) -> None:
+        def work() -> None:
+            try:
+                models = [str(m["id"]) for m in self.service.models()]
+            except Exception:
+                return
+            # The dialog is short-lived: emitting into a destroyed QObject
+            # from this worker crashes the process, not just the thread.
+            try:
+                import shiboken6
+                if self._closed or not shiboken6.isValid(self):
+                    return
+                self.models_listed.emit(models)
+            except RuntimeError:
+                pass
+
+        threading.Thread(target=work, name="lmh-settings-models",
+                         daemon=True).start()
+
+    def _fill_model_choices(self, models: list) -> None:
+        current = self.model.currentText()
+        self.model.blockSignals(True)
+        self.model.clear()
+        self.model.addItems([str(m) for m in models])
+        self.model.setCurrentText(current)
+        self.model.blockSignals(False)
+
     def save(self) -> None:
         try:
             mcp = json.loads(self.mcp.toPlainText() or "{}")
@@ -121,9 +245,11 @@ class SettingsDialog(QDialog):
             values = {
                 "temperature": self.temperature.value(),
                 "base_url": self.base_url.text().strip(),
-                "model": self.model.text().strip(),
+                "model": self.model.currentText().strip(),
                 "context_window": self.context_window.value(),
                 "max_output_tokens": self.max_output.value(),
+                "ui_font_px": self.font_px.value(),
+                "global_rules": self.rules.toPlainText(),
                 "mcp_servers": mcp,
             }
             if self.api_key.text():

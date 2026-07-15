@@ -157,7 +157,12 @@ class ToolRegistry:
                 return MCP_HUB.call(
                     name, args, stop_event=getattr(agent, "_stop", None))
             known = ", ".join(self._tools)
-            return f"Error: unknown tool '{name}'. Available tools: {known}"
+            return (
+                f"Error: no tool named '{name}' exists. Never invent tool "
+                f"names — only these are real right now: {known}. For "
+                "external/MCP capabilities, first call "
+                "mcp(action='search', query='<capability>') and then "
+                "mcp(action='call', tool=<the exact name it returned>).")
         _, fn = self._tools[name]
         try:
             args = json.loads(arguments) if arguments.strip() else {}
@@ -671,7 +676,7 @@ def build_registry(skills_manager) -> ToolRegistry:
 
     reg.register({
         "name": "skill",
-        "description": "Search installed skills by capability, then activate one relevant skill. Loaded instructions appear in the next model step; load each skill once.",
+        "description": "Search installed skills by capability, then activate one relevant skill. Loading returns its instructions immediately and keeps them active for the whole conversation — load each skill at most once.",
         "parameters": {"type": "object", "properties": {
             "action": {"type": "string", "enum": ["search", "load"], "description": "default load for backward compatibility"},
             "query": {"type": "string", "description": "capability phrase for search"},
@@ -681,7 +686,10 @@ def build_registry(skills_manager) -> ToolRegistry:
 
     def save_skill_tool(agent, name: str, hint: str, content: str,
                         category: str | None = None, append: bool = False) -> str:
-        from ..skills import save_skill
+        from ..skills import save_skill, user_skill_file
+        if agent is not None:
+            # Learned skills participate in chat revert like file edits do.
+            agent.record_file_snapshot(str(user_skill_file(name)))
         result = save_skill(name, hint, content, category, append)
         if agent is not None and not result.startswith("Error"):
             agent.skills.refresh()
@@ -699,8 +707,11 @@ def build_registry(skills_manager) -> ToolRegistry:
         }, "required": ["name", "hint", "content"]},
     }, save_skill_tool)
 
-    def remember_tool(fact: str) -> str:
+    def remember_tool(agent, fact: str) -> str:
+        from ..config import MEMORY_FILE
         from ..memory import remember
+        if agent is not None:
+            agent.record_file_snapshot(str(MEMORY_FILE))
         return remember(fact)
 
     reg.register({
@@ -722,6 +733,38 @@ def build_registry(skills_manager) -> ToolRegistry:
             "query": {"type": "string", "description": "a few keywords"},
         }, "required": ["query"]},
     }, history_tool)
+
+    def todo_tool(agent, items: list) -> str:
+        if not isinstance(items, list) or not items:
+            return "Error: todo requires a non-empty items array."
+        if len(items) > 12:
+            return "Error: keep the todo list to 12 items or fewer."
+        marks = {"pending": "[ ]", "active": "[>]", "done": "[x]"}
+        lines = []
+        for item in items:
+            if not isinstance(item, dict):
+                return "Error: each todo item must be {text, status}."
+            text = " ".join(str(item.get("text", "")).split())[:120]
+            status = str(item.get("status", "pending"))
+            if not text or status not in marks:
+                return ("Error: each item needs text and a status of "
+                        "pending, active, or done.")
+            lines.append(f"{marks[status]} {text}")
+        remaining = sum(1 for line in lines if not line.startswith("[x]"))
+        return ("Task list updated"
+                + (f" — {remaining} remaining" if remaining else " — all done")
+                + ":\n" + "\n".join(lines))
+
+    reg.register({
+        "name": "todo",
+        "description": "Maintain your visible task checklist for this request. Send the FULL updated list each time (3-8 short items). Statuses: pending, active (what you are doing now), done. Update it as you finish each step.",
+        "parameters": {"type": "object", "properties": {
+            "items": {"type": "array", "items": {"type": "object", "properties": {
+                "text": {"type": "string"},
+                "status": {"type": "string", "enum": ["pending", "active", "done"]},
+            }, "required": ["text", "status"]}},
+        }, "required": ["items"]},
+    }, todo_tool)
 
     def subtask_tool(agent, task: str) -> str:
         if agent is None:

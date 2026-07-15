@@ -181,12 +181,20 @@ def test_sidebar_modes_load_separate_histories(tmp_path) -> None:
     window = MainWindow(ModeService())  # type: ignore[arg-type]
     window.refresh_timer.stop()
     try:
+        from PySide6.QtWidgets import QLabel
+
+        def row_title(index: int) -> str:
+            row = window.session_list.itemWidget(
+                window.session_list.item(index))
+            label = row.findChild(QLabel, "sessionTitle")
+            return label.text()
+
         window.set_mode("agent")
         assert [item["id"] for item in window.session_cache] == ["code-1"]
-        assert window.session_list.item(0).text().startswith("Fix repository")
+        assert row_title(0).startswith("Fix repository")
         window.set_mode("chat")
         assert [item["id"] for item in window.session_cache] == ["chat-1"]
-        assert window.session_list.item(0).text().startswith("Weekend ideas")
+        assert row_title(0).startswith("Weekend ideas")
         assert not window.workspace_button.isVisibleTo(window)
     finally:
         window.close()

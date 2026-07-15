@@ -8,6 +8,7 @@ from pathlib import Path
 from PySide6.QtCore import QSettings, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QIcon, QMouseEvent, QPixmap
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QApplication,
     QFileDialog,
     QFrame,
@@ -20,9 +21,9 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QMenu,
     QMessageBox,
-    QPlainTextEdit,
     QProgressBar,
     QPushButton,
+    QScrollArea,
     QSizePolicy,
     QSizeGrip,
     QSplitter,
@@ -39,15 +40,16 @@ from .icons import set_svg_icon, svg_pixmap
 from .service import HarnessService, ServiceError
 from .theme import apply_theme, current_theme
 from .widgets import (
-    BrowserPanel,
     ArtifactPreview,
     ComposerEdit,
     IconButton,
     JobWatcher,
+    MarkdownView,
     SelectButton,
     SessionList,
     TranscriptView,
     WelcomePanel,
+    create_browser_panel,
     create_terminal,
 )
 
@@ -158,17 +160,21 @@ class MainWindow(QMainWindow):
         self.right_panel.setMaximumWidth(600)
         self.right_panel.hide()
         root.addWidget(self.body_splitter, 1)
-        grip_row = QHBoxLayout()
-        grip_row.setContentsMargins(0, 0, 2, 2)
-        grip_row.addStretch(1)
-        grip_row.addWidget(QSizeGrip(self))
-        root.addLayout(grip_row)
         self.setCentralWidget(central)
+        # Float the resize grip over the corner instead of giving it its own
+        # layout row, which left a dead strip under the sidebar and composer.
+        self.size_grip = QSizeGrip(central)
+        self.size_grip.setFixedSize(16, 16)
+        self.size_grip.raise_()
         QTimer.singleShot(0, self._layout_responsive)
 
     def resizeEvent(self, event) -> None:  # noqa: N802
         super().resizeEvent(event)
         self._layout_responsive()
+        if hasattr(self, "size_grip"):
+            host = self.centralWidget()
+            self.size_grip.move(host.width() - 16, host.height() - 16)
+            self.size_grip.raise_()
 
     def _layout_responsive(self) -> None:
         if not hasattr(self, "composer_column"):
@@ -292,7 +298,6 @@ class MainWindow(QMainWindow):
         top_layout.addWidget(self.about_button)
         layout.addWidget(top)
         self.transcript = TranscriptView()
-        self.transcript.prompt_selected.connect(self._use_suggestion)
         self.transcript.revert_requested.connect(
             lambda index: self._redo_from(index, regenerate=False))
         self.transcript.edit_requested.connect(
@@ -337,8 +342,15 @@ class MainWindow(QMainWindow):
         column.addLayout(workspace_row)
         frame = QFrame()
         frame.setObjectName("composerFrame")
+        from PySide6.QtGui import QColor
+        from PySide6.QtWidgets import QGraphicsDropShadowEffect
+        shadow = QGraphicsDropShadowEffect(frame)
+        shadow.setBlurRadius(28)
+        shadow.setOffset(0, 6)
+        shadow.setColor(QColor(0, 0, 0, 55))
+        frame.setGraphicsEffect(shadow)
         layout = QVBoxLayout(frame)
-        layout.setContentsMargins(10, 8, 10, 8)
+        layout.setContentsMargins(12, 9, 12, 9)
         self.composer = ComposerEdit()
         self.composer.setPlaceholderText("Message Little Harness…")
         self.composer.setFixedHeight(48)
@@ -441,19 +453,57 @@ class MainWindow(QMainWindow):
         self.file_tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.file_tree.customContextMenuRequested.connect(self._file_menu)
         files_layout.addWidget(self.file_tree)
+        self.skills_tab = QWidget()
+        skills_layout = QVBoxLayout(self.skills_tab)
+        skills_layout.setContentsMargins(4, 4, 4, 4)
+        skills_layout.setSpacing(7)
+        skills_heading = QLabel("Skills")
+        skills_heading.setObjectName("panelHeading")
+        self.skills_count = QLabel("")
+        self.skills_count.setObjectName("panelSubtle")
+        skills_header = QHBoxLayout()
+        skills_header.addWidget(skills_heading)
+        skills_header.addWidget(self.skills_count, 1)
+        skills_layout.addLayout(skills_header)
+        self.skills_search = QLineEdit()
+        self.skills_search.setPlaceholderText("Filter skills…")
+        self.skills_search.textChanged.connect(self._render_skill_cards)
+        skills_layout.addWidget(self.skills_search)
         self.skills_list = QListWidget()
-        self.skills_list.setWordWrap(True)
         self.skills_list.setHorizontalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.skills_list.setSpacing(3)
-        self.memory_view = QPlainTextEdit()
-        self.memory_view.setReadOnly(True)
+        self.skills_list.setSpacing(4)
+        self.skills_list.setSelectionMode(
+            QAbstractItemView.SelectionMode.NoSelection)
+        skills_layout.addWidget(self.skills_list, 1)
+        self._skills_cache: list[dict] = []
+        self.memory_tab = QWidget()
+        memory_layout = QVBoxLayout(self.memory_tab)
+        memory_layout.setContentsMargins(4, 4, 4, 4)
+        memory_layout.setSpacing(7)
+        memory_heading = QLabel("Memory")
+        memory_heading.setObjectName("panelHeading")
+        memory_subtle = QLabel("Facts the assistant keeps across sessions")
+        memory_subtle.setObjectName("panelSubtle")
+        memory_layout.addWidget(memory_heading)
+        memory_layout.addWidget(memory_subtle)
+        memory_scroll = QScrollArea()
+        memory_scroll.setWidgetResizable(True)
+        memory_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self.memory_view = MarkdownView("")
+        memory_host = QWidget()
+        memory_host_layout = QVBoxLayout(memory_host)
+        memory_host_layout.setContentsMargins(6, 6, 6, 12)
+        memory_host_layout.addWidget(self.memory_view)
+        memory_host_layout.addStretch(1)
+        memory_scroll.setWidget(memory_host)
+        memory_layout.addWidget(memory_scroll, 1)
         self.terminal = create_terminal()
-        self.browser_panel = BrowserPanel()
+        self.browser_panel = create_browser_panel()
         self.right_tabs.addWidget(self.artifact_preview)
         self.right_tabs.addWidget(self.files_tab)
-        self.right_tabs.addWidget(self.skills_list)
-        self.right_tabs.addWidget(self.memory_view)
+        self.right_tabs.addWidget(self.skills_tab)
+        self.right_tabs.addWidget(self.memory_tab)
         self.right_tabs.addWidget(self.terminal)
         self.right_tabs.addWidget(self.browser_panel)
         self.right_tabs.currentChanged.connect(self.refresh_right_panel)
@@ -486,10 +536,11 @@ class MainWindow(QMainWindow):
         self.search.setPlaceholderText(labels[1])
         if mode != "agent":
             self.right_panel.hide()
-        self.workspace_button.setVisible(mode in {"agent", "research"})
+        # Research is a reading experience: no workspace/file chrome.
+        self.workspace_button.setVisible(mode == "agent")
         self.attach_button.setVisible(mode == "agent")
         self.artifact_button.setVisible(mode == "agent")
-        self.files_button.setVisible(mode in {"agent", "research"})
+        self.files_button.setVisible(mode == "agent")
         self.terminal_button.setVisible(mode == "agent")
         self.browser_button.setVisible(mode == "agent")
         self.current_id = None
@@ -822,6 +873,13 @@ class MainWindow(QMainWindow):
             self.transcript.apply_event(event)
             if event.get("type") == "session" and isinstance(event.get("data"), dict):
                 self.chat_title.setText(event["data"].get("title", self.chat_title.text()))
+            if (event.get("type") == "tool_call"
+                    and isinstance(event.get("data"), dict)
+                    and event["data"].get("name") == "browser"
+                    and hasattr(self.browser_panel, "set_locked")
+                    and not self.right_panel.isVisible()):
+                # The live browser is about to do something — show it.
+                self.toggle_right_panel(5)
         if event.get("type") in {"job", "queue", "session"}:
             self.refresh_sessions()
 
@@ -863,6 +921,8 @@ class MainWindow(QMainWindow):
         self.composer_hint.setText(
             "Queue or steer the active turn" if busy
             else "Enter to send · Shift+Enter for a new line")
+        if hasattr(self.browser_panel, "set_locked"):
+            self.browser_panel.set_locked(busy)
 
     # ---------- attachments and followups ----------
     def choose_attachments(self) -> None:
@@ -995,18 +1055,58 @@ class MainWindow(QMainWindow):
         if index == 1:
             self.refresh_files()
         elif index == 2:
-            self.skills_list.clear()
             try:
-                for skill in self.service.skills():
-                    self.skills_list.addItem(
-                        f"{skill.get('name', '')}\n{skill.get('description', '')}")
+                self._skills_cache = list(self.service.skills())
             except ServiceError as exc:
                 self._show_error(str(exc))
+                return
+            self._render_skill_cards()
         elif index == 3:
             try:
-                self.memory_view.setPlainText(self.service.memory()["content"])
+                content = self.service.memory()["content"].strip()
             except ServiceError as exc:
                 self._show_error(str(exc))
+                return
+            self.memory_view.set_markdown(
+                content or "*Nothing saved yet. Ask the assistant to "
+                "remember something and it will appear here.*")
+
+    def _render_skill_cards(self) -> None:
+        query = self.skills_search.text().strip().casefold() \
+            if hasattr(self, "skills_search") else ""
+        self.skills_list.clear()
+        shown = 0
+        for skill in self._skills_cache:
+            name = str(skill.get("name", ""))
+            description = str(skill.get("description", ""))
+            if query and query not in name.casefold() \
+                    and query not in description.casefold():
+                continue
+            shown += 1
+            card = QFrame()
+            card.setObjectName("skillCard")
+            layout = QVBoxLayout(card)
+            layout.setContentsMargins(10, 8, 10, 9)
+            layout.setSpacing(2)
+            title_row = QHBoxLayout()
+            icon = QLabel()
+            icon.setPixmap(svg_pixmap("skill", 13, "#d97757"))
+            title = QLabel(name)
+            title.setObjectName("skillName")
+            title_row.addWidget(icon)
+            title_row.addWidget(title, 1)
+            layout.addLayout(title_row)
+            hint = QLabel(description)
+            hint.setObjectName("skillHint")
+            hint.setWordWrap(True)
+            layout.addWidget(hint)
+            item = QListWidgetItem()
+            item.setSizeHint(card.sizeHint())
+            self.skills_list.addItem(item)
+            self.skills_list.setItemWidget(item, card)
+        self.skills_count.setText(
+            f"{shown} of {len(self._skills_cache)}" if query
+            else f"{len(self._skills_cache)} installed")
 
     def refresh_files(self) -> None:
         if not self.current_id:
@@ -1082,6 +1182,10 @@ class MainWindow(QMainWindow):
     def open_settings(self) -> None:
         dialog = SettingsDialog(self.service, self)
         dialog.exec()
+        app = QApplication.instance()
+        if isinstance(app, QApplication):
+            # Text size / appearance settings apply immediately.
+            apply_theme(app, current_theme())
         self._load_models_async()
         self.refresh_sessions()
 

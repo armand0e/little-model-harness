@@ -393,13 +393,11 @@ def test_agent_reset_clears_all_conversation_and_revert_state(tmp_path: Path):
             "turn": 3, "path": str(tmp_path / "old.txt"),
             "existed": False, "before": None,
         }]
-        agent._pending_nudge = 4
         agent.reset()
         assert agent.ctx.messages == []
         assert agent.turn_no == 0
         assert agent.turn_marks == []
         assert agent.checkpoints == []
-        assert agent._pending_nudge == 0
     finally:
         agent.llm.close()
 
@@ -521,8 +519,17 @@ def test_skill_router_preloads_relevant_instructions_each_turn(tmp_path: Path):
     assert "[active skill: debugging-method]" in prompts[0]
     assert "[active skill: coding]" in prompts[0]
 
-    assert agent.run_turn("hello", stream=False) == "done"
-    assert "[active skill:" not in prompts[1]
+    # Activation persists for the conversation (the per-turn reset caused
+    # models to reload the same skills every turn), and an already-active
+    # skill is never re-announced.
+    events.clear()
+    assert agent.run_turn("audit this repository again", stream=False,
+                          on_event=lambda kind, data:
+                          events.append((kind, data))) == "done"
+    assert [data for kind, data in events if kind == "skill_loaded"] == []
+    assert "[active skill: coding]" in prompts[1]
+    assert "coding" in agent.skills.loaded
+    agent.reset()
     assert agent.skills.loaded == set()
 
 
@@ -1527,3 +1534,33 @@ def test_session_undo_and_targeted_revert_routes(isolated_server: Path):
         assert targeted.status_code == 200
         assert targeted.json()["text"] == "first"
         assert session.display == []
+
+
+def test_revert_also_undoes_saved_skills_and_memories(tmp_path, monkeypatch):
+    import harness.config as config
+    import harness.skills as skills_module
+    from harness.tools import build_registry
+    monkeypatch.setattr(config, "MEMORY_FILE", tmp_path / "memory.md")
+    monkeypatch.setattr(skills_module, "USER_SKILLS_DIR", tmp_path / "skills")
+    import harness.memory as memory_module
+    monkeypatch.setattr(memory_module, "MEMORY_FILE", tmp_path / "memory.md")
+    agent = Agent(Config(), workspace=tmp_path)
+    try:
+        agent.tools = build_registry(agent.skills)
+        agent.turn_no = 1
+        agent.turn_marks.append({"turn": 1, "msg_index": 0})
+        result = agent.tools.execute(
+            "save_skill", '{"name": "junk-loop", "hint": "junk",'
+            ' "content": "not actually useful"}', agent=agent)
+        assert not result.startswith("Error"), result
+        skill_file = tmp_path / "skills" / "junk-loop" / "SKILL.md"
+        assert skill_file.is_file()
+        result = agent.tools.execute(
+            "remember", '{"fact": "the user hates junk skills"}', agent=agent)
+        assert not result.startswith("Error"), result
+        assert (tmp_path / "memory.md").is_file()
+        agent.revert_to_turn(1)
+        assert not skill_file.exists()
+        assert not (tmp_path / "memory.md").exists()
+    finally:
+        agent.llm.close()

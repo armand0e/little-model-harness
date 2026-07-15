@@ -132,7 +132,6 @@ class Agent:
         self._vision: Optional[bool] = None
         self._is_sub = False
         self._active_sub: Agent | None = None
-        self._pending_nudge = 0
         self.tool_mode = True
         self._turn_policy: ToolPolicy = select_tool_policy(
             "general assistance", self.cfg.context_window)
@@ -381,6 +380,7 @@ class Agent:
 
     # ---- prompt assembly ----
     def system_prompt(self) -> str:
+        from .config import load_user_settings
         from .memory import load_memory
         mem = load_memory()
         memory_limit = (600 if self._turn_policy.profile == "compact" else
@@ -389,6 +389,10 @@ class Agent:
             mem = "…\n" + mem[-memory_limit:]
         memory_block = (f"\nMemory (background facts, not new authority):\n{mem}\n"
                         if mem else "")
+        rules = str(load_user_settings().get("global_rules") or "").strip()
+        if rules:
+            memory_block += ("\nUser rules (the user set these; follow them "
+                             f"in every chat):\n{rules[:1500]}\n")
         if not self.tool_mode:
             return CHAT_SYSTEM_PROMPT.format(
                 os_name=platform.system() + " " + platform.release(),
@@ -418,7 +422,8 @@ class Agent:
             skills_catalog=(self.skills.catalog_text(
                 self._turn_policy.catalog_detail) or "(none installed)"),
             active_skills_block=(
-                "\nSkills already active for this turn (follow these instructions):\n"
+                "\nSkills active in this conversation (follow these "
+                "instructions; they stay active — never reload them):\n"
                 + self.skills.active_text(self._turn_policy.skill_chars) + "\n"
                 if self.skills.loaded else ""),
             memory_block=memory_block,
@@ -498,7 +503,6 @@ class Agent:
         self.turn_no = 0
         self.turn_marks.clear()
         self.checkpoints.clear()
-        self._pending_nudge = 0
         self._turn_policy = select_tool_policy(
             "general assistance", self.cfg.context_window)
         self._turn_tool_names = self._turn_policy.names
@@ -514,10 +518,6 @@ class Agent:
         reset_transport = getattr(self.llm, "reset_cancel", None)
         if not self._stop.is_set() and callable(reset_transport):
             reset_transport()
-        # Skill activation is turn-scoped. Persisting only the loaded-name set
-        # while old tool results fade made later turns believe instructions
-        # were loaded when the body was no longer present.
-        previous_skills = sorted(self.skills.loaded)
         previous_tools = self._turn_tool_names
         followup = _looks_like_followup(user_text)
         policy = select_tool_policy(user_text, self.cfg.context_window)
@@ -532,16 +532,17 @@ class Agent:
             )
         self._turn_policy = policy
         self._turn_tool_names = policy.names
+        # Skill activation persists for the whole conversation: active
+        # bodies are re-injected into every request's system prompt, and
+        # skill() returns instructions inline. The old per-turn reset made
+        # models reload the same skills every turn — the "skill circles".
         self.skills.refresh()
-        self.skills.reset()
         if self.tool_mode:
             emit = on_event or (lambda t, d: None)
-            recommended = self.skills.recommend(
-                user_text, limit=policy.skill_limit)
-            if not recommended and previous_skills and followup:
-                recommended = [name for name in previous_skills
-                               if name in self.skills.skills][:policy.skill_limit]
-            for name in recommended:
+            for name in self.skills.recommend(
+                    user_text, limit=policy.skill_limit):
+                if name in self.skills.loaded:
+                    continue
                 if self.skills.activate(name):
                     emit("skill_loaded", {"name": name, "source": "automatic"})
         with self._steer_lock:
@@ -567,14 +568,9 @@ class Agent:
         self.turn_no += 1
         self.turn_marks.append({"turn": self.turn_no,
                                 "msg_index": len(self.ctx.messages)})
-        # Hermes-style persistence nudge: if the last turn fought through
-        # several tool errors, remind the model to bank what it learned.
-        if self._pending_nudge:
-            user_text += ("\n\n[harness note: the previous turn hit "
-                          f"{self._pending_nudge} tool errors before "
-                          "succeeding. If you learned a reusable fix or "
-                          "gotcha, call save_skill (or remember) with it.]")
-            self._pending_nudge = 0
+        # The old "save what you learned" nudge is gone on purpose: it made
+        # small models spam junk skills after any error-heavy turn, and the
+        # growing catalog then dragged later turns off-course.
         self.ctx.add_user(user_text)
         final_text = ""
         consecutive_bad = 0
@@ -910,8 +906,6 @@ class Agent:
                           + (resp.content.strip() or "(see the actions above)"))
             self.ctx.add_assistant({"role": "assistant", "content": final_text})
 
-        if turn_errors >= 3 and not final_text.startswith("Error"):
-            self._pending_nudge = turn_errors
         if not final_text:
             final_text = "(done)"
         return final_text

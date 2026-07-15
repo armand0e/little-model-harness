@@ -46,6 +46,8 @@ def select_tool_policy(text: str, context_window: int) -> ToolPolicy:
             "full", 3, 16000, 6000, "names")
 
     names = {"skill"}
+    if profile != "compact":
+        names.add("todo")
     code = _has(
         low,
         r"\b(code|coding|implement|fix|debug|bug|test|build|repo(?:sitory)?|"
@@ -143,5 +145,7 @@ def tool_guide(names: set[str] | frozenset[str]) -> str:
     if "mcp" in names:
         lines.append("MCP: search by capability, then call the exact returned tool name.")
     if "skill" in names:
-        lines.append("Skills: search when needed, load once, then follow the active instructions.")
+        lines.append("Skills: search when needed, load once, then follow the instructions the load call returns.")
+    if "todo" in names:
+        lines.append("For multi-step work, keep the todo checklist current: send the full list, mark items done as you finish.")
     return "\n".join(f"- {line}" for line in lines)

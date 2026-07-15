@@ -91,7 +91,11 @@ def test_skill_search_activation_and_standard_saved_frontmatter(
     manager = SkillsManager((root,))
     assert "browser-helper" in manager.search("operate browser website")
     loaded = manager.load("browser-helper")
-    assert "Activated skill" in loaded and "FIRST RULE" not in loaded
+    # v2.3.x regression fix: instructions must arrive inline in the tool
+    # result — small models act on what the call returns, not on a block
+    # that only appears in the next request's system prompt.
+    assert "activated" in loaded and "FIRST RULE" in loaded
+    assert "already active" in manager.load("browser-helper")
     active = manager.active_text(600)
     assert "FIRST RULE" in active and "LAST RULE" in active
     assert "condensed for context budget" in active

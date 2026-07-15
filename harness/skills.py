@@ -320,14 +320,25 @@ class SkillsManager:
             names = ", ".join(self.skills)
             return f"Error: no skill named '{name}'. Available: {names}"
         if name in self.loaded:
-            return (f"[skill: {name}] is already active for this turn; its "
-                    "instructions are in the system prompt.")
+            return (f"[skill: {name}] is already active and stays active "
+                    "for this whole conversation. Follow its instructions; "
+                    "never load it again.")
         self.loaded.add(name)
-        return (f"Activated skill '{name}'. Its instructions are now in the "
-                "system prompt; continue the task using them.")
+        # Return the instructions inline (as v1 did): small models act on
+        # the tool result they just received far more reliably than on a
+        # block that only appears in the next request's system prompt.
+        body = skill.body.replace("{dir}", str(skill.dir))
+        return (f"[skill: {name}] activated. Follow these instructions "
+                f"now:\n{body}")
 
     def reset(self) -> None:
         self.loaded.clear()
+
+
+def user_skill_file(name: str) -> Path:
+    """Where save_skill would write this skill (for revert checkpointing)."""
+    slug = re.sub(r"[^a-z0-9-]", "-", name.strip().lower()).strip("-")
+    return USER_SKILLS_DIR / slug / "SKILL.md"
 
 
 def save_skill(name: str, hint: str, content: str,

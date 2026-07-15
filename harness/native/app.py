@@ -23,6 +23,11 @@ def _icon_path() -> Path:
 
 def run_native() -> int:
     os.environ.setdefault("QT_ENABLE_HIGHDPI_SCALING", "1")
+    if sys.platform == "win32" and not os.environ.get("LMH_NO_EMBED_BROWSER"):
+        # The agent's Chromium runs headful so the browser panel can embed
+        # its real window: the user watches and interacts with the same
+        # browser the model controls.
+        os.environ.setdefault("LMH_HEADFUL_BROWSER", "1")
     QCoreApplication.setOrganizationName("LittleHarness")
     QCoreApplication.setApplicationName("LittleHarness")
     QCoreApplication.setApplicationVersion(__version__)

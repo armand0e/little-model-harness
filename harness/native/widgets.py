@@ -7,6 +7,7 @@ import os
 import platform
 import queue
 import re
+import sys
 import tempfile
 import threading
 import time
@@ -138,33 +139,6 @@ class SelectButton(QFrame):
                     lambda _checked=False, selected=value: self.set_value(
                         selected, emit=True))
             menu.exec(self.mapToGlobal(self.rect().bottomLeft()))
-            event.accept()
-            return
-        super().mousePressEvent(event)
-
-
-class SuggestionCard(QFrame):
-    selected = Signal(str)
-
-    def __init__(self, heading: str, detail: str) -> None:
-        super().__init__()
-        self.heading = heading
-        self.setObjectName("suggestion")
-        self.setCursor(Qt.CursorShape.PointingHandCursor)
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(15, 11, 15, 11)
-        layout.setSpacing(2)
-        title = QLabel(heading)
-        title.setObjectName("suggestionTitle")
-        description = QLabel(detail)
-        description.setObjectName("suggestionDetail")
-        description.setWordWrap(True)
-        layout.addWidget(title)
-        layout.addWidget(description)
-
-    def mousePressEvent(self, event: QMouseEvent) -> None:  # noqa: N802
-        if event.button() == Qt.MouseButton.LeftButton:
-            self.selected.emit(self.heading)
             event.accept()
             return
         super().mousePressEvent(event)
@@ -698,10 +672,18 @@ class PtyTerminalWidget(QWidget):
             self._send(f"cd -- '{escaped}'\r")
 
     def restart(self) -> None:
-        self._pty.close()
-        self._pyte.reset()
+        old = self._pty
+        try:
+            replacement = self._spawn()
+        except Exception as exc:
+            self._stream.feed(f"\r\n[could not restart the shell: {exc}]\r\n")
+            self._render()
+            return
+        # Swap before closing: the old reader thread compares identity and
+        # exits silently instead of printing "[shell exited]" post-restart.
+        self._pty = replacement
+        old.close()
         self.clear_output()
-        self._pty = self._spawn()
         self._start_reader()
         self._sync_size()
 
@@ -863,6 +845,128 @@ class BrowserPanel(QWidget):
     def resizeEvent(self, event) -> None:  # noqa: N802
         super().resizeEvent(event)
         self._fit_image()
+
+
+class NativeEmbeddedBrowserPanel(QWidget):
+    """The agent's real Chromium, embedded live in the panel (Windows).
+
+    The shared Playwright browser runs headful; this panel captures its
+    top-level window with createWindowContainer, so the user browses the
+    actual page with real input while the agent drives the same browser.
+    While a job runs, input to the embedded window is disabled.
+    """
+
+    def __init__(self, workspace: Path | None = None) -> None:
+        super().__init__()
+        self.setObjectName("browserPanel")
+        self.workspace = (workspace or Path.cwd()).resolve()
+        self._hwnd: int | None = None
+        self._busy_lock = False
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(6)
+        bar = QHBoxLayout()
+        back = IconButton("arrow_left", "Back", size=14)
+        forward = IconButton("arrow_right", "Forward", size=14)
+        reload_button = IconButton("refresh", "Reload", size=14)
+        back.clicked.connect(lambda: self._drive("back"))
+        forward.clicked.connect(lambda: self._drive("forward"))
+        reload_button.clicked.connect(lambda: self._drive("reload"))
+        self.address = QLineEdit()
+        self.address.setPlaceholderText("Enter a URL…")
+        self.address.returnPressed.connect(self.navigate)
+        go = IconButton("arrow_right", "Navigate", size=14)
+        go.clicked.connect(self.navigate)
+        self.lock_hint = QLabel("Assistant is controlling the browser")
+        self.lock_hint.setObjectName("browserLockText")
+        self.lock_hint.hide()
+        bar.addWidget(back)
+        bar.addWidget(forward)
+        bar.addWidget(reload_button)
+        bar.addWidget(self.address, 1)
+        bar.addWidget(go)
+        layout.addLayout(bar)
+        layout.addWidget(self.lock_hint)
+        self.placeholder = QLabel(
+            "The live browser appears here the first time it is used.\n\n"
+            "Enter a URL above to start it — you can then browse directly, "
+            "and watch the assistant work in the same window.")
+        self.placeholder.setObjectName("browserImage")
+        self.placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.placeholder.setWordWrap(True)
+        self.placeholder.setMinimumHeight(180)
+        layout.addWidget(self.placeholder, 1)
+        self._layout = layout
+        # Capture the browser window whenever it exists — whether the user
+        # started it from the address bar or the agent launched it mid-task.
+        self._capture_timer = QTimer(self)
+        self._capture_timer.setInterval(1500)
+        self._capture_timer.timeout.connect(self._try_capture)
+        self._capture_timer.start()
+
+    def _drive(self, action: str, **kwargs) -> None:
+        def work() -> None:
+            from .. import browser
+            browser.control(action, screenshot_dir=self.workspace, **kwargs)
+
+        threading.Thread(target=work, name="lmh-embed-browse",
+                         daemon=True).start()
+
+    def navigate(self) -> None:
+        raw = self.address.text().strip()
+        if not raw:
+            return
+        if not re.match(r"^https?://", raw, re.IGNORECASE):
+            raw = "https://" + raw
+        self._drive("open", url=raw)
+
+    def _try_capture(self) -> None:
+        if self._hwnd is not None:
+            return
+        from .. import browser
+        hwnd = browser.embedded_window_handle()
+        if not hwnd:
+            return
+        from PySide6.QtGui import QWindow
+        foreign = QWindow.fromWinId(hwnd)
+        if foreign is None:
+            return
+        container = QWidget.createWindowContainer(foreign, self)
+        container.setMinimumHeight(180)
+        self._layout.replaceWidget(self.placeholder, container)
+        self.placeholder.hide()
+        self.placeholder.deleteLater()
+        self._layout.setStretchFactor(container, 1)
+        self._hwnd = hwnd
+        self._apply_lock()
+
+    def set_locked(self, locked: bool) -> None:
+        self._busy_lock = locked
+        self._apply_lock()
+
+    def _apply_lock(self) -> None:
+        self.address.setDisabled(self._busy_lock)
+        self.lock_hint.setVisible(self._busy_lock and self._hwnd is not None)
+        if self._hwnd is not None and sys.platform == "win32":
+            import ctypes
+            ctypes.windll.user32.EnableWindow(
+                self._hwnd, 0 if self._busy_lock else 1)
+
+    def set_workspace(self, workspace: Path) -> None:
+        self.workspace = workspace.resolve()
+
+
+def create_browser_panel(
+        workspace: Path | None = None,
+) -> "NativeEmbeddedBrowserPanel | BrowserPanel":
+    """Live embedded Chromium on Windows; the screenshot panel elsewhere."""
+    if os.environ.get("LMH_HEADFUL_BROWSER") == "1" \
+            and platform.system() == "Windows":
+        try:
+            return NativeEmbeddedBrowserPanel(workspace)
+        except Exception:
+            pass
+    return BrowserPanel(workspace)
 
 
 class ArtifactPreview(QWidget):
@@ -1242,22 +1346,67 @@ class _DiffView(QTextBrowser):
         self.setFixedHeight(min(280, max(40, rows * 19 + 18)))
 
 
+_TOOL_META = {
+    "web_search": ("research", "Searched the web", "query"),
+    "fetch": ("browser", "Fetched a page", "url"),
+    "read_file": ("file", "Read a file", "path"),
+    "write_file": ("file", "Wrote a file", "path"),
+    "edit_file": ("edit", "Edited a file", "path"),
+    "run": ("terminal", "Ran a command", "command"),
+    "visual_check": ("image", "Checked the UI visually", "target"),
+    "browser": ("browser", "Used the browser", "action"),
+    "computer": ("tool", "Controlled the computer", "action"),
+    "skill": ("skill", "Loaded a skill", "name"),
+    "save_skill": ("skill", "Saved a skill", "name"),
+    "remember": ("pin", "Saved a memory", "fact"),
+    "history_search": ("chat", "Searched past chats", "query"),
+    "mcp": ("tool", "Used an MCP tool", "tool"),
+    "subtask": ("code", "Delegated a subtask", "task"),
+    "list_dir": ("folder", "Listed a folder", "path"),
+    "search": ("research", "Searched the workspace", "text"),
+    "todo": ("skill", "Task list", ""),
+}
+
+
 class ToolCard(QFrame):
     def __init__(self, name: str, arguments: str,
                  workspace: Path | None = None) -> None:
         super().__init__()
         self.workspace = workspace or Path.cwd()
-        self.setObjectName("toolCard")
+        self.tool_name = name
+        self.setObjectName("todoCard" if name == "todo" else "toolCard")
         self.outer = QVBoxLayout(self)
-        self.outer.setContentsMargins(10, 7, 10, 8)
+        self.outer.setContentsMargins(11, 8, 11, 9)
         self.outer.setSpacing(5)
+        icon, title, key_field = _TOOL_META.get(name, ("tool", name, ""))
+        try:
+            data = json.loads(arguments or "{}")
+            data = data if isinstance(data, dict) else {}
+        except json.JSONDecodeError:
+            data = {}
+        header = QHBoxLayout()
+        header.setSpacing(8)
         self.toggle = QToolButton()
-        self.toggle.setText(f"{name}   {self._summary(arguments)}")
-        self.toggle.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
+        self.toggle.setText(title)
+        self.toggle.setToolButtonStyle(
+            Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         self.toggle.setCheckable(True)
         self.toggle.setObjectName("toolToggle")
-        set_svg_icon(self.toggle, "tool", 15, "#d97757")
-        self.outer.addWidget(self.toggle)
+        set_svg_icon(self.toggle, icon, 15, "#d97757")
+        header.addWidget(self.toggle)
+        detail_text = " ".join(str(data.get(key_field, "")).split())[:80] \
+            if key_field else ""
+        if not detail_text and name not in {"todo"}:
+            detail_text = self._summary(arguments)
+        self.detail = QLabel(detail_text)
+        self.detail.setObjectName("toolDetail")
+        header.addWidget(self.detail, 1)
+        self.status = QLabel("Running…")
+        self.status.setObjectName("toolStatus")
+        header.addWidget(self.status)
+        self.outer.addLayout(header)
+        if name == "todo":
+            self._render_todo(data.get("items"))
         # Edits and new files show their change as a colored diff up front,
         # the way the web client did — not as raw JSON behind a toggle.
         diff_html = self._change_preview(name, arguments)
@@ -1268,7 +1417,32 @@ class ToolCard(QFrame):
         self.result.setMaximumHeight(220)
         self.result.setVisible(False)
         self.outer.addWidget(self.result)
-        self.toggle.toggled.connect(self.result.setVisible)
+        if name == "todo":
+            self.toggle.setCheckable(False)
+        else:
+            self.toggle.toggled.connect(self.result.setVisible)
+
+    def _render_todo(self, items) -> None:
+        if not isinstance(items, list):
+            return
+        statuses = {"done": ("todoDone", "check"),
+                    "active": ("todoActive", "arrow_right"),
+                    "pending": ("todoPending", "circle")}
+        for item in items[:12]:
+            if not isinstance(item, dict):
+                continue
+            style, icon = statuses.get(str(item.get("status", "pending")),
+                                       statuses["pending"])
+            row = QHBoxLayout()
+            row.setSpacing(7)
+            mark = QLabel()
+            mark.setPixmap(svg_pixmap(icon, 12))
+            label = QLabel(str(item.get("text", ""))[:160])
+            label.setObjectName(style)
+            label.setWordWrap(True)
+            row.addWidget(mark, 0, Qt.AlignmentFlag.AlignTop)
+            row.addWidget(label, 1)
+            self.outer.addLayout(row)
 
     @staticmethod
     def _change_preview(name: str, arguments: str) -> str:
@@ -1321,8 +1495,13 @@ class ToolCard(QFrame):
         self.result.setFixedHeight(
             min(220, lines * metrics.lineSpacing() + 30))
         failed = result.lstrip().lower().startswith("error")
-        self.toggle.setText(self.toggle.text().split("  ", 1)[0]
-                            + ("  error" if failed else "  done"))
+        self.status.setText("Failed" if failed else "Done")
+        self.status.setProperty("failed", "true" if failed else "false")
+        self.status.style().unpolish(self.status)
+        self.status.style().polish(self.status)
+        if self.tool_name == "todo":
+            self.status.setText("")
+            return
         self.toggle.setChecked(failed)
         paths = re.findall(
             r"(?:Visual screenshot \[[^\]]+\]|Browser screenshot):\s*(.+?\.(?:png|jpe?g|webp))\s*$",
@@ -1415,7 +1594,6 @@ class WelcomePanel(QFrame):
 class TranscriptView(QScrollArea):
     """Conversation timeline with native widgets and incremental updates."""
 
-    prompt_selected = Signal(str)
     revert_requested = Signal(int)
     regenerate_requested = Signal(int)
     edit_requested = Signal(int)
@@ -1434,12 +1612,18 @@ class TranscriptView(QScrollArea):
         self.canvas.setObjectName("transcriptCanvas")
         self.canvas.setMaximumWidth(808)
         self.content_layout = QVBoxLayout(self.canvas)
-        self.content_layout.setContentsMargins(24, 28, 24, 40)
-        self.content_layout.setSpacing(10)
+        self.content_layout.setContentsMargins(24, 30, 24, 44)
+        self.content_layout.setSpacing(14)
         self.content_layout.addStretch(1)
         self.setWidget(self.canvas)
         self.workspace = Path.cwd()
         self.mode = "agent"  # set by the window; varies the welcome content
+        # Auto-scroll is sticky: it follows generation only while the user
+        # is at the bottom. Scrolling up pauses it; returning re-engages.
+        self._stick_to_bottom = True
+        bar = self.verticalScrollBar()
+        bar.sliderMoved.connect(lambda _v: self._update_stick())
+        bar.sliderReleased.connect(self._update_stick)
         self._activity_label: QLabel | None = None
         self._activity_base = ""
         self._activity_dots = 0
@@ -1451,7 +1635,6 @@ class TranscriptView(QScrollArea):
         self._assistant_text = ""
         self._tool: ToolCard | None = None
         self._activity: QWidget | None = None
-        self._welcome: QFrame | None = None
         self._scroll_settle = QTimer(self)
         self._scroll_settle.setSingleShot(True)
         self._scroll_settle.setInterval(20)
@@ -1473,109 +1656,20 @@ class TranscriptView(QScrollArea):
 
     def render_display(self, display: list[dict], workspace: Path) -> None:
         clear_layout(self.content_layout)
-        self._welcome = None
         self.workspace = workspace
-        if display:
-            last_user = -1
-            for display_index, item in enumerate(display):
-                if item.get("t") == "user":
-                    last_user = display_index
-                self.add_item(item, display_index=display_index,
-                              user_index=last_user)
-        else:
-            self.show_welcome()
+        last_user = -1
+        for display_index, item in enumerate(display):
+            if item.get("t") == "user":
+                last_user = display_index
+            self.add_item(item, display_index=display_index,
+                          user_index=last_user)
         self.content_layout.addStretch(1)
         self.reset_live()
+        self._stick_to_bottom = True
         self.scroll_bottom()
-
-    def show_welcome(self) -> None:
-        frame = QFrame()
-        frame.setObjectName("welcome")
-        self._welcome = frame
-        self._resize_welcome()
-        layout = QVBoxLayout(frame)
-        layout.setContentsMargins(0, 62, 0, 20)
-        hour = datetime.now().hour
-        greeting = ("Up late?" if hour < 5 else "Good morning." if hour < 12
-                    else "Good afternoon." if hour < 18 else "Good evening.")
-        title_row = QHBoxLayout()
-        title_row.addStretch(1)
-        mark = QLabel()
-        mark.setPixmap(svg_pixmap("sparkle", 20, "#d97757"))
-        title = QLabel(f"{greeting} How can I help?")
-        title.setObjectName("welcomeTitle")
-        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title_row.addWidget(mark)
-        title_row.addWidget(title)
-        title_row.addStretch(1)
-        subtitles = {
-            "agent": "local model · native tools · your workspace",
-            "chat": "local model · a quiet place to think",
-            "research": "multi-source web research · cited report",
-        }
-        subtitle = QLabel(subtitles.get(self.mode, subtitles["agent"]))
-        subtitle.setObjectName("welcomeSubtitle")
-        subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addLayout(title_row)
-        layout.addWidget(subtitle)
-        grid = QGridLayout()
-        grid.setHorizontalSpacing(10)
-        grid.setVerticalSpacing(10)
-        prompt_sets = {
-            "agent": (
-                ("Draft a document", "Word memos, reports, letters"),
-                ("Build a spreadsheet", "Excel with live formulas"),
-                ("Make a slide deck", "PowerPoint from an outline"),
-                ("Research a topic", "web research with sources"),
-                ("Automate this PC", "open apps, type, organize"),
-                ("Work on code", "read, edit, run, verify"),
-            ),
-            "chat": (
-                ("Explain a concept", "clear, honest explanations"),
-                ("Think something through", "decisions, plans, tradeoffs"),
-                ("Improve some writing", "tone, clarity, structure"),
-                ("Practice a language", "conversation and corrections"),
-                ("Summarize pasted text", "the short version, faithfully"),
-                ("Brainstorm ideas", "names, angles, alternatives"),
-            ),
-            "research": (
-                ("Compare two products", "a cited head-to-head report"),
-                ("Market overview", "size, players, and trends"),
-                ("Technology deep dive", "how it works and where it's going"),
-                ("Evaluate a claim", "evidence for and against"),
-                ("Travel or purchase research", "options, prices, pitfalls"),
-                ("Current state of a field", "recent developments, sourced"),
-            ),
-        }
-        prompts = prompt_sets.get(self.mode, prompt_sets["agent"])
-        for index, (heading, detail) in enumerate(prompts):
-            card = SuggestionCard(heading, detail)
-            card.selected.connect(self.prompt_selected.emit)
-            grid.addWidget(card, index // 3, index % 3)
-        layout.addLayout(grid)
-        layout.addStretch(1)
-        index = max(0, self.content_layout.count() - 1)
-        self.content_layout.insertWidget(
-            index, frame, 1, Qt.AlignmentFlag.AlignHCenter)
-        effect = QGraphicsOpacityEffect(frame)
-        frame.setGraphicsEffect(effect)
-        fade = QPropertyAnimation(effect, b"opacity", frame)
-        fade.setDuration(240)
-        fade.setStartValue(0.0)
-        fade.setEndValue(1.0)
-        fade.setEasingCurve(QEasingCurve.Type.OutCubic)
-        fade.finished.connect(
-            lambda: frame.setGraphicsEffect(None))  # type: ignore[arg-type]
-        fade.start(QPropertyAnimation.DeletionPolicy.DeleteWhenStopped)
-
-    def _resize_welcome(self) -> None:
-        if self._welcome is not None:
-            self._welcome.setFixedWidth(
-                max(320, min(680, self.viewport().width() - 48)))
 
     def resizeEvent(self, event) -> None:  # noqa: N802
         super().resizeEvent(event)
-        self._resize_welcome()
         # A conversation pinned to its end stays pinned through window
         # resizes; otherwise shrinking the window hides the newest message
         # behind the composer.
@@ -1728,6 +1822,11 @@ class TranscriptView(QScrollArea):
     def apply_event(self, event: dict) -> None:
         kind, data = event.get("type"), event.get("data")
         if kind == "user":
+            # A new turn begins: drop live references to the previous turn's
+            # widgets, or queued follow-ups stream their answer into the old
+            # response block ABOVE this user message.
+            self.reset_live()
+            self._stick_to_bottom = True
             payload = data if isinstance(data, dict) else {"text": str(data)}
             self.add_item({"t": "user", **payload})
         elif kind == "steer":
@@ -1820,6 +1919,14 @@ class TranscriptView(QScrollArea):
             self._activity.deleteLater()
             self._activity = None
 
+    def wheelEvent(self, event) -> None:  # noqa: N802
+        super().wheelEvent(event)
+        self._update_stick()
+
+    def _update_stick(self) -> None:
+        bar = self.verticalScrollBar()
+        self._stick_to_bottom = bar.value() >= bar.maximum() - 32
+
     def scroll_bottom(self) -> None:
         self._scroll_bottom_now()
         # Rich-text document height and attachment thumbnails settle on the
@@ -1828,6 +1935,8 @@ class TranscriptView(QScrollArea):
         self._scroll_settle.start()
 
     def _scroll_bottom_now(self) -> None:
+        if not self._stick_to_bottom:
+            return
         bar = self.verticalScrollBar()
         delta = bar.maximum() - bar.value()
         if delta <= 0:
@@ -1906,22 +2015,57 @@ class SessionList(QListWidget):
         self.setTextElideMode(Qt.TextElideMode.ElideRight)
         self.setWordWrap(False)
 
+    @staticmethod
+    def _relative_time(timestamp: float) -> str:
+        delta = max(0, int(time.time() - timestamp))
+        if delta < 60:
+            return "just now"
+        if delta < 3600:
+            return f"{delta // 60}m ago"
+        if delta < 86400:
+            return f"{delta // 3600}h ago"
+        if delta < 7 * 86400:
+            return f"{delta // 86400}d ago"
+        return datetime.fromtimestamp(timestamp).strftime("%b %d")
+
     def set_sessions(self, sessions: list[dict], current_id: str | None) -> None:
         self.clear()
         for session in sessions:
-            item = QListWidgetItem(session.get("title") or "New chat")
-            if session.get("pinned"):
-                item.setIcon(svg_icon("pin", 13))
+            item = QListWidgetItem()
             item.setData(Qt.ItemDataRole.UserRole, session["id"])
-            state = ""
+            row = QWidget()
+            layout = QVBoxLayout(row)
+            layout.setContentsMargins(10, 6, 8, 7)
+            layout.setSpacing(1)
+            title_row = QHBoxLayout()
+            title_row.setSpacing(5)
+            title = QLabel(session.get("title") or "New chat")
+            title.setObjectName("sessionTitle")
+            metrics = title.fontMetrics()
+            title.setText(metrics.elidedText(
+                title.text(), Qt.TextElideMode.ElideRight, 180))
+            if session.get("pinned"):
+                pin = QLabel()
+                pin.setPixmap(svg_pixmap("pin", 11))
+                title_row.addWidget(pin)
+            title_row.addWidget(title, 1)
+            layout.addLayout(title_row)
             if session.get("running"):
-                state = "  · working"
+                state = "working…"
             elif session.get("queued"):
-                state = "  · queued"
+                state = "queued"
             elif session.get("pending_count"):
-                state = f"  · {session['pending_count']} queued"
-            item.setText(item.text() + state)
+                state = f"{session['pending_count']} queued"
+            else:
+                state = ""
+            when = self._relative_time(float(session.get("updated") or 0))
+            subtitle = QLabel(f"{when} · {state}" if state else when)
+            subtitle.setObjectName(
+                "sessionStateBusy" if state else "sessionSubtitle")
+            layout.addWidget(subtitle)
+            item.setSizeHint(row.sizeHint())
             self.addItem(item)
+            self.setItemWidget(item, row)
             if session["id"] == current_id:
                 self.setCurrentItem(item)
 

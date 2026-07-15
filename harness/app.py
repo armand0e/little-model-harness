@@ -170,6 +170,14 @@ def main() -> None:
         run_native()
     except KeyboardInterrupt:
         pass
+    finally:
+        # The window's closeEvent already stopped jobs and persisted state.
+        # In packaged builds, exit unconditionally so no lingering native
+        # SDK thread (ConPTY, Playwright transport, MCP child plumbing) can
+        # keep a closed app alive holding the single-instance lock. Source
+        # runs (and tests that call main()) exit normally.
+        if getattr(sys, "frozen", False):
+            os._exit(0)
 
 
 if __name__ == "__main__":
