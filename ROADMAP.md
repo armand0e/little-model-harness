@@ -20,27 +20,32 @@ browser and desktop stay one codebase.
 - [x] **Electron shell** — sandboxed window over the Python sidecar
   (`--server-only`), sidecar tree-kill on quit.
 
-## Next, in order (one PR-sized change each)
+## Reimplemented (continued)
 
-1. **Todo checklist tool** — `todo` tool + web UI checklist card
-   (v2-archive: `tools/__init__.py`, tool card rendering).
-2. **Revert coverage for skills/memories** — checkpoint `save_skill` /
-   `remember` writes so chat revert undoes them (v2-archive has the
-   implementation + test).
-3. **Skill-loop guardrails, minimally** — keep v1.1.1's inline skill bodies
-   (already the behavior here); port ONLY the improved unknown-tool error
-   message. Do NOT port tool_policy or the prompt rewrite — they are the
-   suspected behavior regression.
-4. **Settings: global rules + text size + optional model** — server keys
-   exist in v2-archive; add fields to the web settings dialog.
-5. **Diff cards for edit_file** — colored diff rendering in the web tool
-   card (the web UI may already show raw args; add the diff view).
-6. **Terminal** — xterm.js panel + a websocket PTY endpoint on the server
-   (ConPTY via pywinpty on Windows, `pty.openpty` + `subprocess` elsewhere —
-   never `pty.fork` in-process; see v2-archive `widgets.py` backends).
-7. **CI job timeouts** — port `timeout-minutes` to the build workflow.
-8. **Packaging refresh** — electron-builder with the PyInstaller sidecar in
-   `resources/sidecar`; retire pywebview.
+- [x] **Office skill quality** — md2pptx design system (5 themes, 8 slide
+  families), md2docx cover/heading/table/footer styling, make_xlsx real
+  tables + totals + charts; UTF-8-safe readers.
+- [x] **Viewport resize fix** — layout classes re-sync when the window is
+  resized across breakpoints.
+- [x] **Todo checklist tool** — `todo` tool + web checklist card.
+- [x] **Revert coverage for skills/memories** — `save_skill`/`remember`
+  writes are checkpointed and undone by chat revert.
+- [x] **Settings** — global rules, UI scale (80–150%), optional model
+  (blank = first from `/v1/models`).
+- [x] **Diff cards for edit_file** — already present in the web client.
+- [x] **Terminal** — xterm.js drawer tab over a websocket PTY endpoint
+  (ConPTY/pywinpty on Windows, openpty+subprocess elsewhere), same
+  local-only origin rules as the HTTP API.
+- [x] **CI job timeouts** — every workflow job is bounded.
+
+## Next
+
+1. **Skill-loop guardrails, minimally** — port ONLY the improved
+   unknown-tool error message if hallucinated tool names reappear. Do NOT
+   port tool_policy or the prompt rewrite — they were the behavior
+   regression.
+2. **Packaging refresh** — electron-builder with the PyInstaller sidecar in
+   `resources/sidecar`; retire pywebview. Do this with the next release.
 
 ## Explicitly NOT coming back (v2 regressions)
 
