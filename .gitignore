@@ -28,3 +28,7 @@ workspace/
 *.blend
 *.blend1
 *.glb
+
+# Electron shell
+electron/node_modules/
+electron/dist/

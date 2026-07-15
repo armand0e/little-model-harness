@@ -359,6 +359,8 @@
   body.chat-mode #wschip, body.chat-mode #attachbtn,
   body.chat-mode #artbtn, body.chat-mode #filesbtn,
   body.chat-mode #skillsbtn { display: none; }
+  body.research-mode #wschip, body.research-mode #attachbtn,
+  body.research-mode #skillsbtn { display: none; }
   #attachbtn {
     width: 30px; height: 30px; border-radius: 9px; font-size: 17px;
     color: var(--muted); border: 1px solid var(--border);
@@ -686,6 +688,7 @@
   <div class="sb-nav" aria-label="Workspace sections">
     <button type="button" data-sidebar-mode="agent" class="active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 9l-4 3 4 3M16 9l4 3-4 3M14 5l-4 14"/></svg><span>Code tasks</span><span class="nav-count" id="codecount">0</span></button>
     <button type="button" data-sidebar-mode="chat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 15a3 3 0 01-3 3H9l-5 3v-3a3 3 0 01-2-3V7a3 3 0 013-3h12a3 3 0 013 3z"/></svg><span>Chat</span><span class="nav-count" id="chatcount">0</span></button>
+    <button type="button" data-sidebar-mode="research"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.4-4.4M8 11h6M11 8v6"/></svg><span>Deep research</span><span class="nav-count" id="researchcount">0</span></button>
   </div>
   <button class="newchat" id="newchat" disabled><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> <span id="newchatlabel">New code task</span></button>
   <div id="historyscope">Code history</div>
@@ -710,6 +713,7 @@
       <span class="mode-label">Mode</span>
       <button type="button" data-mode="chat" aria-pressed="false">Chat</button>
       <button type="button" data-mode="agent" class="active" aria-pressed="true">Code</button>
+      <button type="button" data-mode="research" aria-pressed="false">Research</button>
     </div>
     <select id="modelselect" title="Active model"><option>…</option></select>
     <button class="icon-btn" id="exportbtn" title="Export chat as Markdown"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg></button>
@@ -876,10 +880,11 @@ const pendingSends = new Set();
 const stoppingSessions = new Set();
 let pendingFollowups = [];
 let sendAction = localStorage.lmhSendAction === "steer" ? "steer" : "queue";
-let draftMode = localStorage.lmhMode === "chat" ? "chat" : "agent";
+let draftMode = ["chat", "research"].includes(localStorage.lmhMode)
+  ? localStorage.lmhMode : "agent";
 let settingsSaving = false, settingsDirty = false, settingsPollTimer = 0;
 let dialogResolve = null, dialogLastFocus = null;
-const modeAttachments = { agent: [], chat: [] };
+const modeAttachments = { agent: [], chat: [], research: [] };
 // every file/tree/upload/preview call is scoped to the active chat
 const wsq = (pfx = "?") => currentId ? pfx + "sid=" + currentId : "";
 const activeWs = () => sessionWs || status.workspace || "";
@@ -900,6 +905,7 @@ function syncActiveUI() {
   $("wschip").classList.toggle("busy", running);
   const mode = currentMode();
   document.body.classList.toggle("chat-mode", mode === "chat");
+  document.body.classList.toggle("research-mode", mode === "research");
   if (mode === "chat") {
     $("drawer").classList.remove("open");
     document.body.classList.remove("art-open");
@@ -916,19 +922,30 @@ function syncActiveUI() {
   });
   $("codecount").textContent = modeSessions("agent").length;
   $("chatcount").textContent = modeSessions("chat").length;
-  $("modetoggle").title = mode === "agent"
-    ? "Code mode can use skills, tools, files, and MCP" : "Chat mode has no tools";
-  $("historyscope").textContent = mode === "chat" ? "Chat history" : "Code history";
-  $("newchatlabel").textContent = mode === "chat" ? "New chat" : "New code task";
-  $("search").placeholder = mode === "chat" ? "Search chat history…" : "Search code history…";
-  $("attachbtn").disabled = mode === "chat" || running;
+  $("researchcount").textContent = modeSessions("research").length;
+  const MODE_TEXT = {
+    agent: ["Code mode can use skills, tools, files, and MCP",
+            "Code history", "New code task", "Search code history…",
+            "Enter to send · Shift+Enter for a new line · Esc to stop"],
+    chat: ["Chat mode has no tools", "Chat history", "New chat",
+           "Search chat history…", "Chat mode · no tools · Enter to send"],
+    research: ["Deep research runs multi-source web research and writes a cited report",
+               "Research history", "New research", "Search research history…",
+               "Deep research · cited report · Enter to send"],
+  };
+  const [toggleTitle, scope, newLabel, searchHint, idleHint] =
+    MODE_TEXT[mode] || MODE_TEXT.agent;
+  $("modetoggle").title = toggleTitle;
+  $("historyscope").textContent = scope;
+  $("newchatlabel").textContent = newLabel;
+  $("search").placeholder = searchHint;
+  $("attachbtn").disabled = mode !== "agent" || running;
   $("attachbtn").title = running ? "Attachments cannot be added to a follow-up yet"
-    : mode === "chat" ? "Switch to Code mode to attach files" : "Attach files";
+    : mode !== "agent" ? "Switch to Code mode to attach files" : "Attach files";
   document.querySelector(".comp-hint").textContent = running
     ? (sendAction === "steer" ? "Steer the current turn at its next safe boundary"
                               : "Queue a message to run after the current turn")
-    : mode === "chat" ? "Chat mode · no tools · Enter to send"
-    : "Enter to send · Shift+Enter for a new line · Esc to stop";
+    : idleHint;
   $("sendmode").textContent = (sendAction === "steer" ? "Steer" : "Queue") + " ▾";
 }
 
@@ -1631,6 +1648,16 @@ const SUGGESTIONS = [
   ["Work on code", "read, edit, run, verify",
    "Write a Python script that renames all files in a folder to lowercase, and test it on a temp folder."],
 ];
+const RESEARCH_SUGGESTIONS = [
+  ["Compare two products", "a cited head-to-head report",
+   "Research and compare the two leading robot vacuums this year and recommend one, with sources."],
+  ["Market overview", "size, players, and trends",
+   "Give me a sourced overview of the home battery storage market: main players, prices, and trends."],
+  ["Evaluate a claim", "evidence for and against",
+   "Research whether cold showers have proven health benefits and weigh the evidence."],
+  ["Technology deep dive", "how it works and where it's going",
+   "Research how solid-state batteries work, their current limitations, and expected timelines."],
+];
 const CHAT_SUGGESTIONS = [
   ["Brainstorm ideas", "explore possibilities together",
    "Help me brainstorm ten thoughtful ideas for a low-key weekend project."],
@@ -1653,12 +1680,15 @@ function showWelcome() {
     : hour < 18 ? "Good afternoon — what shall we make" : "Good evening — what shall we make";
   h.innerHTML = `<span class="spark"><svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M12 3l1.9 5.9 6.1 3.1-6.1 3.1L12 21l-1.9-5.9L4 12l6.1-3.1z"/></svg></span> ${greet}?`;
   const endpoint = endpointIsLocal(status.base_url) ? "local model endpoint" : "remote model endpoint";
-  const chatMode = currentMode() === "chat";
-  w.append(h, el("p", "", chatMode
-    ? `${status.model} · simple chat · ${endpoint}`
-    : `${status.model} · ${status.skills.length} skills · ${endpoint}`));
+  const welcomeMode = currentMode();
+  w.append(h, el("p", "", {
+    chat: `${status.model} · simple chat · ${endpoint}`,
+    research: `${status.model} · multi-source research · cited reports`,
+  }[welcomeMode] || `${status.model} · ${status.skills.length} skills · ${endpoint}`));
   const grid = el("div", "sugg-grid");
-  for (const [title, sub, prompt] of chatMode ? CHAT_SUGGESTIONS : SUGGESTIONS) {
+  for (const [title, sub, prompt] of
+       { chat: CHAT_SUGGESTIONS, research: RESEARCH_SUGGESTIONS }[welcomeMode]
+       || SUGGESTIONS) {
     const c = el("div", "sugg");
     c.append(el("b", "", title), el("span", "", sub));
     c.onclick = () => { input.value = prompt; input.focus(); autogrow(); };
@@ -1761,7 +1791,8 @@ function convoRow(s, snippet) {
 }
 
 let _searchTimer = null;
-const sessionMode = session => session?.mode === "chat" ? "chat" : "agent";
+const sessionMode = session => ["chat", "research"].includes(session?.mode)
+  ? session.mode : "agent";
 const modeSessions = mode => sessions.filter(session => sessionMode(session) === mode);
 function renderSidebar() {
   const box = $("convos");
@@ -1776,11 +1807,12 @@ function renderSidebar() {
       if ($("search").value.trim() !== q || draftMode !== renderedMode) return;
       results = results.filter(session => sessionMode(session) === renderedMode);
       box.innerHTML = "";
+      const scopeName = { chat: "Chat", research: "Research" }[renderedMode] || "Code";
       box.append(el("div", "group-label",
-        `${renderedMode === "chat" ? "Chat" : "Code"} matches for “${q}”`));
+        `${scopeName} matches for “${q}”`));
       for (const s of results) box.append(convoRow(s, s.snippet));
       if (!results.length) box.append(el("div", "empty",
-        `No matches in ${renderedMode === "chat" ? "chat" : "code"} history`));
+        `No matches in ${scopeName.toLowerCase()} history`));
     }, 220);
     return;
   }
@@ -1806,7 +1838,8 @@ function renderSidebar() {
     for (const s of g.items) box.append(convoRow(s));
   }
   if (!scopedSessions.length) box.append(el("div", "empty",
-    renderedMode === "chat" ? "No chat conversations yet" : "No code tasks yet"));
+    { chat: "No chat conversations yet",
+      research: "No research yet" }[renderedMode] || "No code tasks yet"));
 }
 
 async function openSession(id) {
@@ -2841,7 +2874,7 @@ document.addEventListener("click", e => {
 });
 $("newchat").onclick = newChat;
 async function setConversationMode(mode) {
-  if (!['agent', 'chat'].includes(mode) || mode === currentMode()) return;
+  if (!['agent', 'chat', 'research'].includes(mode) || mode === currentMode()) return;
   modeAttachments[draftMode] = attachments;
   draftMode = mode;
   attachments = modeAttachments[mode] || [];
