@@ -9,6 +9,9 @@
     "smoke": "electron . --smoke",
     "dist": "electron-builder --win"
   },
+  "dependencies": {
+    "electron-updater": "^6.3.9"
+  },
   "devDependencies": {
     "electron": "^38.2.0",
     "electron-builder": "^25.1.8"
@@ -22,12 +25,17 @@
     "files": [
       "main.js",
       "preload.js",
-      "package.json"
+      "package.json",
+      "node_modules/**/*"
     ],
     "extraResources": [
       {
         "from": "../dist/LittleHarness",
         "to": "sidecar"
+      },
+      {
+        "from": "../packaging/littleharness.ico",
+        "to": "icon.ico"
       }
     ],
     "win": {
@@ -40,6 +48,11 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "artifactName": "LittleHarness-Setup-${version}.${ext}"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "armand0e",
+      "repo": "little-model-harness"
     }
   }
 }

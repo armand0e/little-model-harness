@@ -733,6 +733,21 @@
     background-color .25s, border-color .25s; }
   #composer { transition: border-color .15s, background-color .25s; }
 
+  /* ============ find in page ============ */
+  #findbar { position: absolute; top: 54px; right: 22px; z-index: 30;
+    display: none; align-items: center; gap: 6px; padding: 6px 8px;
+    background: var(--raised); border: 1px solid var(--border);
+    border-radius: 10px; box-shadow: 0 6px 24px rgba(0,0,0,.16); }
+  #findbar.show { display: flex; animation: pop-in .16s ease-out; }
+  #findbar input { width: 200px; border: none; outline: none;
+    background: transparent; color: var(--text); font-size: 13px; }
+  #findcount { font-size: 11.5px; color: var(--faint); min-width: 44px;
+    text-align: right; white-space: nowrap; }
+  #findbar .icon-btn { width: 24px; height: 24px; }
+  ::highlight(lmh-find) { background: rgba(247, 205, 100, .55);
+    color: #1f1e1b; }
+  ::highlight(lmh-find-cur) { background: var(--accent); color: #fff; }
+
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
       animation-duration: .01ms !important;
@@ -794,6 +809,14 @@
     <button class="icon-btn" id="artbtn" title="Artifacts"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 3v18"/></svg></button>
     <button class="icon-btn" id="filesbtn" title="Workspace files"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></button>
     <button class="icon-btn" id="skillsbtn" title="Skills"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3l1.9 5.9 6.1 3.1-6.1 3.1L12 21l-1.9-5.9L4 12l6.1-3.1z"/></svg></button>
+  </div>
+
+  <div id="findbar">
+    <input id="findinput" placeholder="Find in chat…" autocomplete="off" spellcheck="false">
+    <span id="findcount"></span>
+    <button class="icon-btn" id="findprev" title="Previous (Shift+Enter)"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg></button>
+    <button class="icon-btn" id="findnext" title="Next (Enter)"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></button>
+    <button class="icon-btn" id="findclose" title="Close (Esc)"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
   </div>
 
   <div id="scroller"><div id="thread"></div></div>
@@ -2387,12 +2410,33 @@ async function consumeTurnStream(state, resp) {
   if (!sawDone) throw new Error("response stream ended before completion");
 }
 
+function notifyTurnDone(sid) {
+  if (document.hasFocus() || !("Notification" in window)) return;
+  const title = (sessions.find(s => s.id === sid) || {}).title || "Chat";
+  const show = () => {
+    const n = new Notification("Little Harness", {
+      body: `Finished: ${title}`, tag: "lmh-turn-" + sid });
+    n.onclick = () => {
+      window.focus();
+      if (currentId !== sid) openSession(sid).catch(() => {});
+      n.close();
+    };
+  };
+  if (Notification.permission === "granted") show();
+  else if (Notification.permission === "default")
+    Notification.requestPermission().then(p => {
+      if (p === "granted") show();
+    }).catch(() => {});
+}
+
 async function finishTurnStream(state) {
   const sid = state.sid;
   if (activeTurns.get(sid) === state) activeTurns.delete(sid);
   clearTimeout(state.runScanTimer);
   syncActiveUI();
   await refreshSessions();
+  if (state.finished && !state.deferReattach && state.events.length)
+    notifyTurnDone(sid);
   if (currentId === sid) {
     if (state.renderer) { state.renderer.clearActivity(); state.renderer.endThink();
       state.renderer.sealAsst(); }
@@ -2742,12 +2786,21 @@ function populateSettings(s) {
   $("mcpinput").value = JSON.stringify(s.mcp_servers || {}, null, 2);
   renderSettingsInfo(s);
 }
+let uiScalePercent = 100;
 function applyUiScale(scale) {
-  const factor = Math.max(80, Math.min(150, Number(scale) || 100)) / 100;
+  uiScalePercent = Math.max(80, Math.min(150, Number(scale) || 100));
+  const factor = uiScalePercent / 100;
   document.body.style.zoom = factor === 1 ? "" : String(factor);
   // Lets fixed-height chrome (window bar) divide the zoom back out so it
   // keeps matching the 36px native caption-button overlay.
   document.documentElement.style.setProperty("--ui-zoom", String(factor));
+}
+let uiScaleSaveTimer = null;
+function nudgeUiScale(delta) {
+  applyUiScale(delta === null ? 100 : uiScalePercent + delta);
+  clearTimeout(uiScaleSaveTimer);
+  uiScaleSaveTimer = setTimeout(() =>
+    post("/settings", { ui_scale: uiScalePercent }).catch(() => {}), 800);
 }
 function renderSettingsInfo(s) {
   const mcpReady = (s.mcp_status || []).filter(x => x.state === "ready");
@@ -2987,7 +3040,15 @@ input.addEventListener("paste", e => {
       }
     }
   }
-  if (files.length) { e.preventDefault(); addAttachments(files); }
+  if (files.length) { e.preventDefault(); addAttachments(files); return; }
+  // Very large pasted text becomes a file attachment instead of flooding
+  // the composer (and the model's context) with a wall of text.
+  const text = e.clipboardData?.getData("text") || "";
+  if (text.length > 8000) {
+    e.preventDefault();
+    addAttachments([new File([text], `pasted-${Date.now()}.txt`,
+      { type: "text/plain" })]);
+  }
 });
 const composer = $("composer");
 composer.addEventListener("dragover", e => { e.preventDefault(); composer.classList.add("dragover"); });
@@ -3012,6 +3073,18 @@ document.addEventListener("keydown", e => {
       }
     }
     return;
+  }
+  if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "f") {
+    e.preventDefault(); openFind(); return;
+  }
+  if ((e.ctrlKey || e.metaKey) && !e.altKey
+      && ["=", "+", "-", "0"].includes(e.key)) {
+    e.preventDefault();
+    nudgeUiScale(e.key === "0" ? null : e.key === "-" ? -5 : 5);
+    return;
+  }
+  if (e.key === "Escape" && $("findbar").classList.contains("show")) {
+    closeFind(); return;
   }
   if (e.key === "Escape" && $("attachpreview").classList.contains("open")) {
     closeAttachmentPreview(); return;
@@ -3093,6 +3166,70 @@ async function callWindow(action) {
     console.error(`Window action ${action} failed`, error);
   }
 }
+/* ---- find in chat (Ctrl+F, CSS Custom Highlight API) ---- */
+const findState = { ranges: [], index: -1 };
+function findClear() {
+  if (window.CSS?.highlights) {
+    CSS.highlights.delete("lmh-find");
+    CSS.highlights.delete("lmh-find-cur");
+  }
+  findState.ranges = []; findState.index = -1;
+  $("findcount").textContent = "";
+}
+function findRun(query) {
+  findClear();
+  if (!query || !window.Highlight || !CSS.highlights) return;
+  const needle = query.toLowerCase();
+  const walker = document.createTreeWalker($("thread"), NodeFilter.SHOW_TEXT);
+  const ranges = [];
+  let node;
+  while ((node = walker.nextNode()) && ranges.length < 500) {
+    const hay = node.data.toLowerCase();
+    let at = 0;
+    while ((at = hay.indexOf(needle, at)) !== -1 && ranges.length < 500) {
+      const range = new Range();
+      range.setStart(node, at); range.setEnd(node, at + needle.length);
+      ranges.push(range); at += needle.length;
+    }
+  }
+  findState.ranges = ranges;
+  CSS.highlights.set("lmh-find", new Highlight(...ranges));
+  if (ranges.length) findGo(0);
+  else $("findcount").textContent = "0/0";
+}
+function findGo(index) {
+  const count = findState.ranges.length;
+  if (!count) return;
+  findState.index = ((index % count) + count) % count;
+  const range = findState.ranges[findState.index];
+  CSS.highlights.set("lmh-find-cur", new Highlight(range));
+  $("findcount").textContent = `${findState.index + 1}/${count}`;
+  // open a collapsed tool card if the match is inside one
+  range.startContainer.parentElement?.closest("details")?.setAttribute("open", "");
+  range.startContainer.parentElement?.scrollIntoView({ block: "center" });
+}
+function openFind() {
+  $("findbar").classList.add("show");
+  const field = $("findinput");
+  field.focus(); field.select();
+  if (field.value) findRun(field.value);
+}
+function closeFind() {
+  $("findbar").classList.remove("show");
+  findClear();
+  input.focus();
+}
+$("findinput").addEventListener("input", e => findRun(e.target.value));
+$("findinput").addEventListener("keydown", e => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    findGo(findState.index + (e.shiftKey ? -1 : 1));
+  } else if (e.key === "Escape") { e.preventDefault(); closeFind(); }
+});
+$("findnext").onclick = () => findGo(findState.index + 1);
+$("findprev").onclick = () => findGo(findState.index - 1);
+$("findclose").onclick = closeFind;
+
 $("windowmin").onclick = () => callWindow("minimize");
 $("windowmax").onclick = () => callWindow("toggle_maximize");
 $("windowclose").onclick = () => callWindow("close");
