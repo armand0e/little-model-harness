@@ -1,14 +1,45 @@
 {
   "name": "little-harness-desktop",
-  "version": "0.1.0",
+  "version": "1.2.0",
   "private": true,
   "description": "Electron shell for Little Harness: a modern web UI over the Python agent sidecar.",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "smoke": "electron . --smoke"
+    "smoke": "electron . --smoke",
+    "dist": "electron-builder --win"
   },
   "devDependencies": {
-    "electron": "^38.2.0"
+    "electron": "^38.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "dev.littleharness.app",
+    "productName": "Little Harness",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../dist/LittleHarness",
+        "to": "sidecar"
+      }
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "../packaging/littleharness.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "LittleHarness-Setup-${version}.${ext}"
+    }
   }
 }

@@ -29,7 +29,8 @@ if os.path.isdir(computer_use_dir):
     # Pinned native accessibility MCP + upstream MIT license/source manifest.
     datas.append((computer_use_dir, "computer-use"))
 binaries = []
-hiddenimports = ["multipart"]  # python-multipart (fastapi uploads)
+hiddenimports = ["multipart",   # python-multipart (fastapi uploads)
+                 "websockets"]  # uvicorn ws protocol (terminal endpoint)
 
 is_windows = sys.platform == "win32"
 is_macos = sys.platform == "darwin"
@@ -43,6 +44,10 @@ ICON = (os.path.join(SPECPATH, "littleharness.ico") if is_windows
 # sees them — bundle them explicitly.
 collect_pkgs = ["webview", "docx", "openpyxl", "pptx", "pypdf", "fitz",
                 "PIL", "pyautogui", "pygetwindow", "playwright", "mcp"]
+if is_windows:
+    # ConPTY backend for the interactive terminal; its winpty DLLs are
+    # loaded dynamically and invisible to static analysis.
+    collect_pkgs.append("winpty")
 if is_macos:
     # pyobjc frameworks the computer skill's permission preflight and
     # pyautogui need at runtime
@@ -65,9 +70,34 @@ a = Analysis(
     binaries=binaries,
     datas=datas,
     hiddenimports=hiddenimports,
-    excludes=["torch", "tensorflow", "matplotlib", "numpy.f2py"],
+    excludes=[
+        "torch", "tensorflow", "matplotlib", "numpy.f2py", "logfire",
+        # Heavy packages that leak in from crowded site-packages via
+        # optional-import chains and hooks; the harness never uses them.
+        "patchright", "xformers", "bitsandbytes", "triton", "cv2",
+        "googleapiclient", "pyarrow", "spacy", "ctranslate2", "av",
+        "scipy", "PySide6", "qtpy", "shiboken6", "transformers",
+        "diffusers", "accelerate", "gradio", "gradio_client", "altair",
+        "yt_dlp", "open_webui", "pandas", "sklearn", "onnxruntime",
+        "numba", "llvmlite", "sentence_transformers", "faster_whisper",
+        "librosa", "soundfile", "torchvision", "torchaudio", "cupy",
+        "nvidia", "opensearchpy", "IPython",
+        "langchain", "langchain_core", "langchain_community",
+        "langchain_text_splitters", "datasets", "outlines", "selenium",
+        "faiss", "nltk", "pycountry", "chromadb", "unstructured",
+        # pywebview backends for other platforms/toolkits
+        "webview.platforms.qt", "webview.platforms.gtk",
+        "webview.platforms.android", "webview.platforms.cocoa",
+    ],
     noarchive=False,
 )
+# patchright (a playwright fork) registers PyInstaller hooks under
+# playwright's own hook names, so its 90MB driver stows away whenever
+# playwright is bundled. We only ship the real playwright.
+a.datas = [entry for entry in a.datas
+           if not entry[0].startswith("patchright")]
+a.binaries = [entry for entry in a.binaries
+              if not entry[0].startswith("patchright")]
 pyz = PYZ(a.pure)
 
 exe = EXE(
