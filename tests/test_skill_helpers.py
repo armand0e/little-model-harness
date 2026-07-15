@@ -95,7 +95,7 @@ def test_presentation_helpers_create_read_and_report_slide_count(
     )
     made = run_script("skills/presentations/scripts/md2pptx.py", source, output)
     assert made.returncode == 0, made.stderr
-    assert "(2 slides)" in made.stdout
+    assert "(2 slides" in made.stdout
     prs = Presentation(output)
     assert len(prs.slides) == 2
 

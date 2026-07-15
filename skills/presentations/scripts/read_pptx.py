@@ -4,6 +4,12 @@ Usage: python read_pptx.py file.pptx
 """
 import sys
 
+# Windows pipes default to a legacy code page; documents contain
+# arbitrary Unicode, so never let printing crash the read.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
+
 from pptx import Presentation
 
 MAX_CHARS = 8000

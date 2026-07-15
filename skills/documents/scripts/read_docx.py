@@ -1,6 +1,12 @@
 """Dump a .docx as readable text. Usage: python read_docx.py file.docx"""
 import sys
 
+# Windows pipes default to a legacy code page; documents contain
+# arbitrary Unicode, so never let printing crash the read.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
+
 from docx import Document
 from docx.table import Table
 from docx.text.paragraph import Paragraph

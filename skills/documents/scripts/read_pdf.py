@@ -1,5 +1,11 @@
 """Dump PDF text. Usage: python read_pdf.py file.pdf [pages e.g. 1-5]"""
 import sys
+
+# Windows pipes default to a legacy code page; documents contain
+# arbitrary Unicode, so never let printing crash the read.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
 import re
 
 from pypdf import PdfReader
