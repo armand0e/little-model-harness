@@ -1,0 +1,4 @@
+
+# Electron shell
+electron/node_modules/
+electron/dist/

@@ -6,7 +6,7 @@
 // the sidecar; this process only manages its lifecycle and the window.
 "use strict";
 
-const { app, BrowserWindow, shell } = require("electron");
+const { app, BrowserWindow, ipcMain, shell } = require("electron");
 const { spawn, spawnSync } = require("node:child_process");
 const path = require("node:path");
 const fs = require("node:fs");
@@ -89,19 +89,35 @@ async function createWindow() {
     backgroundColor: "#262624",
     autoHideMenuBar: true,
     title: "Little Harness",
+    // The web app draws its own themed window bar; the native caption
+    // buttons render as a themed overlay on top of it.
+    titleBarStyle: "hidden",
+    titleBarOverlay: { color: "#2b2a27", symbolColor: "#a3a094", height: 36 },
     webPreferences: {
-      // The renderer is the served web app; it needs no Node access.
+      // The renderer is the served web app; it needs no Node access
+      // beyond the tiny titlebar-theming bridge in preload.js.
+      preload: path.join(__dirname, "preload.js"),
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: true,
     },
+  });
+  ipcMain.handle("titlebar-overlay", (_event, colors) => {
+    if (!mainWindow || typeof colors !== "object" || colors === null) return;
+    const hex = (value) => typeof value === "string"
+      && /^#[0-9a-fA-F]{6}$/.test(value);
+    if (hex(colors.color) && hex(colors.symbolColor)
+        && typeof mainWindow.setTitleBarOverlay === "function") {
+      mainWindow.setTitleBarOverlay({
+        color: colors.color, symbolColor: colors.symbolColor, height: 36 });
+    }
   });
   // External links open in the system browser, never inside the shell.
   mainWindow.webContents.setWindowOpenHandler(({ url: target }) => {
     shell.openExternal(target);
     return { action: "deny" };
   });
-  await mainWindow.loadURL(url);
+  await mainWindow.loadURL(url + "/?desktop=1&shell=electron");
   if (SMOKE) {
     console.log("SMOKE OK: loaded " + url);
     app.exit(0);

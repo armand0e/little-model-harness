@@ -566,6 +566,9 @@ def _apply_window(window: int) -> None:
     CFG.compact_threshold = max(CFG.context_window - CFG.output_reserve,
                                 CFG.context_window // 2)
     CFG.compact_target = CFG.compact_threshold * 2 // 3
+    # Output budget is derived, not configured: always 75% of the window
+    # (each call is still clamped to the space actually left).
+    CFG.max_output_tokens = max(256, int(CFG.context_window * 0.75))
 
 
 DETECTED: dict[str, int | None] = {"n_ctx": None}
@@ -653,7 +656,10 @@ def _sync_window() -> None:
     except Exception:
         return
     n = DETECTED["n_ctx"]
-    if n and n < CFG.context_window:
+    if n:
+        # The model server's reported n_ctx is authoritative — grow or
+        # shrink to it. The configured window only matters when the server
+        # does not report one.
         _apply_window(n)
 
 
@@ -735,9 +741,9 @@ def set_settings(body: SettingsBody):
     context_window = REQUESTED_CONTEXT_WINDOW
     if body.context_window is not None:
         context_window = max(2048, min(1_048_576, body.context_window))
-    max_output_tokens = CFG.max_output_tokens
-    if body.max_output_tokens is not None:
-        max_output_tokens = max(256, min(131_072, body.max_output_tokens))
+    # Output budget is derived (75% of the window); any client-sent value
+    # is ignored so old clients can't pin a stale budget.
+    max_output_tokens = max(256, int(context_window * 0.75))
     base_url = CFG.base_url
     if body.base_url is not None and body.base_url.strip():
         base_url = body.base_url.strip().rstrip("/")

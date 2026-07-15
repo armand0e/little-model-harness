@@ -1312,10 +1312,12 @@ def test_session_settings_memory_and_workspace_api_lifecycle(
         assert body["temperature"] == 0.7
         assert body["base_url"] == "http://localhost:9999/v1"
         assert body["context_window"] == 8192
-        assert body["max_output_tokens"] == 3072
+        # Output budget is always derived as 75% of the context window;
+        # the client-supplied value is ignored.
+        assert body["max_output_tokens"] == 6144
         persisted = json.loads(settings_path.read_text(encoding="utf-8"))
         assert persisted["model"] == "test-model"
-        assert persisted["max_output_tokens"] == 3072
+        assert persisted["max_output_tokens"] == 6144
 
         created = client.post("/api/sessions")
         assert created.status_code == 200

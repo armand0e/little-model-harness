@@ -52,6 +52,10 @@
   .window-controls button:hover { color: var(--text); background: var(--border-soft); }
   .window-controls .window-close:hover { color: #fff; background: #c42b1c; }
   .window-controls svg { width: 11px; height: 11px; }
+  /* Electron draws native caption buttons as a themed overlay — hide the
+     in-page ones and reserve their space in the drag strip. */
+  html.electron-shell .window-controls { display: none; }
+  html.electron-shell .window-drag { padding-right: 150px; }
 
   /* ============ sidebar ============ */
   #sidebar {
@@ -144,29 +148,29 @@
   #topbar {
     display: flex; align-items: center; gap: 10px; padding: 10px 18px;
     border-bottom: 1px solid var(--border-soft);
+    /* never let the icon cluster spill over an opened side panel */
+    min-width: 0; overflow: hidden; flex-wrap: nowrap;
   }
+  #topbar .icon-btn { flex-shrink: 0; }
   #topbar .icon-btn, .sb-head .icon-btn {
     padding: 6px 9px; border-radius: 8px; color: var(--muted); font-size: 15px;
   }
   #topbar .icon-btn:hover, .sb-head .icon-btn:hover { background: var(--border-soft); color: var(--text); }
-  body.booting #composer, body.booting #modetoggle, body.booting #newchat {
+  body.booting #composer, body.booting #newchat {
     opacity: .55; pointer-events: none; }
   #chat-title { flex: 1; font-weight: 600; font-size: 14.5px; white-space: nowrap;
                 overflow: hidden; text-overflow: ellipsis; }
-  #modelselect { max-width: 240px; font-size: 12px; color: var(--muted);
-    border: 1px solid var(--border); padding: 3px 26px 3px 10px;
-    border-radius: 999px; background: var(--panel); outline: none; }
-  #modelselect:focus { border-color: var(--accent); }
-  #modetoggle { display: inline-flex; align-items: center; gap: 2px;
-    padding: 3px; border: 1px solid var(--border); border-radius: 10px;
-    background: var(--panel); box-shadow: var(--shadow); }
-  #modetoggle .mode-label { padding: 0 6px; color: var(--faint);
-    font-size: 10px; font-weight: 700; letter-spacing: .45px;
-    text-transform: uppercase; }
-  #modetoggle button { min-width: 50px; padding: 5px 10px; border-radius: 7px;
-    color: var(--muted); font-size: 12px; font-weight: 600; }
-  #modetoggle button:hover { color: var(--text); background: var(--border-soft); }
-  #modetoggle button.active { color: #fff; background: var(--accent); }
+  /* quiet inline model picker, bottom-right of the composer */
+  #modelselect { max-width: 220px; font-size: 12px; color: var(--muted);
+    border: none; padding: 5px 22px 5px 9px; border-radius: 8px;
+    background: transparent; outline: none; cursor: pointer;
+    appearance: none; -webkit-appearance: none;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%23999489' stroke-width='2.4' stroke-linecap='round'><path d='m6 9 6 6 6-6'/></svg>");
+    background-repeat: no-repeat; background-position: right 7px center; }
+  #modelselect:hover { background-color: var(--border-soft); color: var(--text); }
+  #modelselect:focus { color: var(--text); }
+  #modelselect option { background: var(--panel); color: var(--text);
+    font-size: 13px; }
 
   #scroller { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden;
     overscroll-behavior: contain; }
@@ -659,9 +663,7 @@
     #thread { padding: 18px 12px 30px; }
     #composer-wrap { padding: 0 10px 12px; }
     #topbar { padding: 8px 10px; gap: 6px; }
-    #modetoggle .mode-label { display: none; }
-    #modetoggle button { min-width: 44px; padding-inline: 7px; }
-    #welcome { padding-top: 5vh; }
+        #welcome { padding-top: 5vh; }
     #welcome h2 { font-size: 24px; }
     .m-user > div { max-width: 92%; }
     .user-attachments { grid-template-columns: 1fr; min-width: min(300px, 72vw); }
@@ -694,7 +696,7 @@
     <button type="button" id="windowclose" class="window-close" title="Close" aria-label="Close"><svg viewBox="0 0 12 12"><path d="M2 2l8 8m0-8-8 8" stroke="currentColor"/></svg></button>
   </div>
 </header>
-<script>if(new URLSearchParams(location.search).get("desktop")==="1")document.documentElement.classList.add("desktop-shell")</script>
+<script>{const p=new URLSearchParams(location.search);if(p.get("desktop")==="1")document.documentElement.classList.add("desktop-shell");if(p.get("shell")==="electron")document.documentElement.classList.add("electron-shell")}</script>
 
 <nav id="sidebar">
   <div class="sb-head">
@@ -725,13 +727,6 @@
   <div id="topbar">
     <button class="icon-btn" id="expand" title="Show sidebar"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 12h18M3 6h18M3 18h18"/></svg></button>
     <div id="chat-title">New chat</div>
-    <div id="modetoggle" role="group" aria-label="Conversation mode">
-      <span class="mode-label">Mode</span>
-      <button type="button" data-mode="chat" aria-pressed="false">Chat</button>
-      <button type="button" data-mode="agent" class="active" aria-pressed="true">Code</button>
-      <button type="button" data-mode="research" aria-pressed="false">Research</button>
-    </div>
-    <select id="modelselect" title="Active model"><option>…</option></select>
     <button class="icon-btn" id="exportbtn" title="Export chat as Markdown"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg></button>
     <button class="icon-btn" id="artbtn" title="Artifacts"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 3v18"/></svg></button>
     <button class="icon-btn" id="filesbtn" title="Workspace files"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></button>
@@ -756,6 +751,7 @@
         <button id="attachbtn" class="attach" title="Attach files"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
         <div class="comp-hint">Enter to send · Shift+Enter for a new line · Esc to stop</div>
         <button id="sendmode" title="Choose how this message is sent">Queue ▾</button>
+        <select id="modelselect" title="Active model"><option>…</option></select>
         <button id="stopbtn" title="Stop"><svg viewBox="0 0 24 24" width="14" height="14"><rect x="6" y="6" width="12" height="12" rx="1.5" fill="currentColor"/></svg></button>
         <button id="sendbtn" title="Send" disabled><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
       </div>
@@ -842,21 +838,17 @@
         </label>
       </div>
       <div class="set-row">
-        <label>Context window <span style="font-size:11px">tokens</span></label>
-        <input type="number" id="ctxinput" class="set-text" min="4096" step="1024" placeholder="32768">
-      </div>
-      <div class="set-row">
-        <label>Max output <span style="font-size:11px">tokens per model call</span></label>
-        <input type="number" id="maxoutinput" class="set-text" min="256" step="256" placeholder="4096">
-      </div>
-      <div class="set-row">
-        <label>UI scale <span style="font-size:11px">whole app</span></label>
+        <label>Text size</label>
         <select id="scaleinput" class="set-text">
-          <option value="80">80%</option><option value="90">90%</option>
-          <option value="100" selected>100%</option><option value="110">110%</option>
-          <option value="125">125%</option><option value="150">150%</option>
+          <option value="90">Small</option>
+          <option value="100" selected>Normal</option>
+          <option value="115">Large</option>
         </select>
       </div>
+    </div>
+    <div style="font-size:11px;color:var(--faint);margin:2px 0 8px">
+      Context window and output budget are read from the model server
+      automatically; output is capped at 75% of the window.
     </div>
     <div class="set-row">
       <label>Global rules <span style="font-size:11px">followed in every conversation</span></label>
@@ -942,11 +934,6 @@ function syncActiveUI() {
     $("drawer").classList.remove("open");
     document.body.classList.remove("art-open");
   }
-  document.querySelectorAll("#modetoggle [data-mode]").forEach(button => {
-    const active = button.dataset.mode === mode;
-    button.classList.toggle("active", active);
-    button.setAttribute("aria-pressed", String(active));
-  });
   document.querySelectorAll("[data-sidebar-mode]").forEach(button => {
     const active = button.dataset.sidebarMode === mode;
     button.classList.toggle("active", active);
@@ -967,7 +954,6 @@ function syncActiveUI() {
   };
   const [toggleTitle, scope, newLabel, searchHint, idleHint] =
     MODE_TEXT[mode] || MODE_TEXT.agent;
-  $("modetoggle").title = toggleTitle;
   $("historyscope").textContent = scope;
   $("newchatlabel").textContent = newLabel;
   $("search").placeholder = searchHint;
@@ -2687,9 +2673,8 @@ function populateSettings(s) {
   $("keyinput").placeholder = s.api_key_set ? "(key saved — type to replace)" : "not needed for local";
   $("clearkey").checked = false;
   $("clearkeylabel").style.display = s.api_key_set ? "block" : "none";
-  $("ctxinput").value = s.context_window;
-  $("maxoutinput").value = s.max_output_tokens;
-  $("scaleinput").value = String(s.ui_scale || 100);
+  const scale = Number(s.ui_scale || 100);
+  $("scaleinput").value = scale <= 92 ? "90" : scale >= 110 ? "115" : "100";
   $("rulesinput").value = s.global_rules || "";
   $("mcpinput").value = JSON.stringify(s.mcp_servers || {}, null, 2);
   renderSettingsInfo(s);
@@ -2800,8 +2785,6 @@ $("savemodal").onclick = async () => {
   const body = { temperature: +$("tslider").value,
     base_url: $("urlinput").value.trim(),
     model: $("modelinput").value.trim(),   // blank = auto from /v1/models
-    context_window: +$("ctxinput").value || undefined,
-    max_output_tokens: +$("maxoutinput").value || undefined,
     global_rules: $("rulesinput").value,
     ui_scale: +$("scaleinput").value || 100,
     mcp_servers: mcpServers };
@@ -2865,6 +2848,13 @@ function applyTheme(t) {
   document.documentElement.dataset.theme =
     t === "system" ? (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light") : t;
   localStorage.lmhTheme = t;
+  // Electron shell: keep the native caption-button overlay on-theme.
+  if (window.lmhShell?.setTitleBarOverlay) {
+    const dark = document.documentElement.dataset.theme === "dark";
+    window.lmhShell.setTitleBarOverlay(dark
+      ? { color: "#2b2a27", symbolColor: "#a3a094" }
+      : { color: "#efece4", symbolColor: "#6d6a62" });
+  }
 }
 $("themebtn").onclick = () => {
   const cur = localStorage.lmhTheme || "system";
@@ -3020,9 +3010,6 @@ async function setConversationMode(mode) {
     || modeSessions(mode)[0];
   if (target) await openSession(target.id);
 }
-document.querySelectorAll("#modetoggle [data-mode]").forEach(button => {
-  button.onclick = () => setConversationMode(button.dataset.mode);
-});
 document.querySelectorAll("[data-sidebar-mode]").forEach(button => {
   button.onclick = () => setConversationMode(button.dataset.sidebarMode);
 });

@@ -88,14 +88,17 @@ def load_user_mcp_servers() -> dict[str, dict]:
 def computer_backend_info() -> dict[str, object]:
     """Locate the trusted cross-platform computer-use runtime.
 
-    Packaged builds carry the pinned native binary. Source checkouts may opt
-    in with LMH_COMPUTER_USE_BIN or a system installation; tests and ordinary
-    source imports never start an untracked file from build/ implicitly.
+    Packaged builds carry the pinned native binary. Source checkouts use
+    LMH_COMPUTER_USE_BIN, the repo's own build output
+    (``python packaging/fetch_computer_use.py --output build/computer-use``),
+    or a system installation.
     """
     if os.environ.get("LMH_DISABLE_COMPUTER_USE"):
         return {"available": False, "backend": platform.system(),
                 "source": "disabled", "command": None}
     override = os.environ.get("LMH_COMPUTER_USE_BIN", "").strip()
+    name = "open-computer-use.exe" if sys.platform == "win32" \
+        else "open-computer-use"
     command: str | None = None
     source = "unavailable"
     if override:
@@ -104,15 +107,18 @@ def computer_backend_info() -> dict[str, object]:
             command, source = candidate, "environment"
     elif getattr(sys, "frozen", False):
         from .config import ROOT
-        name = "open-computer-use.exe" if sys.platform == "win32" \
-            else "open-computer-use"
         bundle_candidate = ROOT / "computer-use" / name
         if bundle_candidate.is_file():
             command, source = str(bundle_candidate), "bundled"
     else:
-        found = shutil.which("open-computer-use")
-        if found:
-            command, source = found, "system"
+        from .config import ROOT
+        dev_candidate = ROOT / "build" / "computer-use" / name
+        if dev_candidate.is_file():
+            command, source = str(dev_candidate), "dev-build"
+        else:
+            found = shutil.which("open-computer-use")
+            if found:
+                command, source = found, "system"
     return {"available": command is not None,
             "backend": {"Windows": "Windows UI Automation",
                         "Darwin": "macOS Accessibility",
