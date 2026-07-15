@@ -66,7 +66,15 @@ a = Analysis(
     binaries=binaries,
     datas=datas,
     hiddenimports=hiddenimports,
-    excludes=["torch", "tensorflow", "matplotlib", "numpy.f2py"],
+    # Keep builds deterministic even on a developer machine with unrelated
+    # ML/data tooling installed. Optional imports in third-party packages can
+    # otherwise pull gigabytes of libraries the harness never uses.
+    excludes=[
+        "torch", "torchao", "triton", "tensorflow", "transformers",
+        "datasets", "spacy", "thinc", "sklearn", "scipy", "pandas",
+        "pyarrow", "altair", "cv2", "boto3", "botocore", "matplotlib",
+        "IPython", "jedi", "pytest", "black", "numpy.f2py",
+    ],
     noarchive=False,
 )
 pyz = PYZ(a.pure)

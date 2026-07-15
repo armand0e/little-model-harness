@@ -13,6 +13,7 @@ description: Use for Blender questions about modeling, topology, modifiers, mate
 4. Refine only where silhouette, deformation, shading, or bake quality needs geometry. Maintain intentional edge flow and inspect normals, scale, and modifier order.
 5. Validate from delivery distance and under diagnostic lighting. Check manifoldness where required, UV distortion/density, material portability, transforms, origin, naming, and bounds.
 6. Export a small test early and round-trip it in the target engine or viewer; compare orientation, scale, materials, normals, textures, and animation before final delivery.
+7. Produce visual evidence from at least front, side, rear, and three-quarter views, plus a delivery-distance silhouette and a close diagnostic view. Inspect the actual renders/screenshots with `read_file`; a single flattering camera angle is not verification.
 
 Give version-aware commands and selection/mode context. A visually correct Blender viewport is not proof that the exported asset is correct.
 

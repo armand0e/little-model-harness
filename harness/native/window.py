@@ -519,6 +519,19 @@ class MainWindow(QMainWindow):
         percent = min(100, round(100 * used / ceiling))
         self.context_bar.setValue(percent)
         self.context_percent.setText(f"{percent}%")
+        tools = context.get("tools_available") or []
+        breakdown = [
+            f"Prompt: {int(used):,} / {int(ceiling):,} tokens before compaction",
+            f"Profile: {context.get('tool_profile', 'auto')}",
+            f"System: {int(context.get('system_tokens', 0)):,}",
+            f"Tool schemas: {int(context.get('tool_schema_tokens', 0)):,}",
+            f"Conversation: {int(context.get('conversation_tokens', 0)):,}",
+        ]
+        if tools:
+            breakdown.append("Available tools: " + ", ".join(map(str, tools)))
+        tooltip = "\n".join(breakdown)
+        self.context_bar.setToolTip(tooltip)
+        self.context_percent.setToolTip(tooltip)
         self._render_followups(session.get("pending_messages", []))
         self.render_session_list()
         self.refresh_right_panel()

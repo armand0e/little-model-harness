@@ -13,6 +13,7 @@ description: Use for anything three.js / WebGL 3D in the browser - scenes, camer
 4. For visual defects, use helpers, unlit diagnostic materials, wireframe/normals, bounding boxes, and camera/frustum inspection. For performance, measure `renderer.info`, frame time, GPU time when available, and asset cost.
 5. Test resize, high-DPI caps, context loss where relevant, loading failure, disposal/reload, and representative desktop/mobile hardware.
 6. Return a minimal runnable example with exact imports and required DOM/CSS. State the verified three.js revision and any version-sensitive API.
+7. For a delivered scene, use `visual_check` at desktop/mobile and capture multiple meaningful states or animation times with distinct `state_label` and `wait_ms` values. Inspect every attached image for composition, clipping, camera framing, lighting, and motion continuity; one initial frame is insufficient.
 
 Do not repair an invisible object by randomly changing scale, camera, material, and lighting together; isolate one cause per test.
 

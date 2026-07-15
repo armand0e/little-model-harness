@@ -381,7 +381,8 @@ def _context_status_for(session: Session) -> dict:
             "compactions": 0, "last_prompt_tokens": 0,
             "system_tokens": 0, "tool_schema_tokens": 0,
             "conversation_tokens": 0, "calibration_ratio": 1.0,
-            "skills_loaded": []}
+            "skills_loaded": [], "tool_profile": "auto",
+            "tools_available": []}
 
 
 # ---------- pages ----------

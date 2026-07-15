@@ -15,6 +15,7 @@ Artistic principles (easing, anticipation, arcs, timing) live in the animation-p
 4. Block key poses on stepped interpolation, approve timing, then polish curves, contacts, arcs, overlap, and transitions. Keep controls and deform bones conceptually separate.
 5. Test extreme poses and inspect weight sums, volume loss, twists, foot/hand sliding, and constraint cycles.
 6. Bake constraint-driven motion as required, export a minimal clip, and round-trip it in the target runtime before producing all actions.
+7. Verify rendered evidence at the key storytelling poses and difficult transitions from at least two useful camera angles. Inspect first/middle/last frames, contacts, silhouettes, and loop seams with `read_file`; playback existing without errors is not visual proof.
 
 Return exact mode, selection order, editor, and property names for procedural instructions. UI paths and bundled extensions can change across Blender releases, so verify version-specific steps.
 

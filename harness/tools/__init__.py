@@ -7,7 +7,9 @@ helper scripts run through `run`), not in extra tool schemas.
 from __future__ import annotations
 
 import json
+import queue
 import re
+import threading
 from typing import Callable
 
 from .files import read_file, write_file, edit_file, list_dir, search
@@ -126,11 +128,21 @@ class ToolRegistry:
         self._tools[schema["name"]] = (
             {"type": "function", "function": schema}, fn)
 
-    def schemas(self) -> list[dict]:
+    def schemas(self, allowed: set[str] | frozenset[str] | None = None,
+                include_direct_mcp: bool = True) -> list[dict]:
+        """Return schemas filtered for one turn.
+
+        No-argument behavior remains the complete diagnostic catalog. The
+        agent uses ``allowed`` and the generic MCP tool so irrelevant local
+        and external schemas do not consume model context.
+        """
         from ..mcp_client import MCP_HUB
-        return ([s for s, _ in self._tools.values()]
-                + _context_bounded_mcp_schemas(
-                    MCP_HUB.schemas(include_builtin=False)))
+        local = [schema for name, (schema, _) in self._tools.items()
+                 if allowed is None or name in allowed]
+        if not include_direct_mcp:
+            return local
+        return (local + _context_bounded_mcp_schemas(
+            MCP_HUB.schemas(include_builtin=False)))
 
     def execute(self, name: str, arguments: str, agent=None) -> str:
         if name not in self._tools:
@@ -169,6 +181,32 @@ def build_registry(skills_manager) -> ToolRegistry:
     def _ws(agent):
         """The chat's workspace — base dir for relative paths and `run`."""
         return getattr(agent, "workspace", None)
+
+    def _cancellable(agent, fn: Callable, *args) -> str:
+        """Keep synchronous network helpers responsive to the Stop button."""
+        result: queue.Queue[tuple[bool, object]] = queue.Queue(maxsize=1)
+
+        def worker() -> None:
+            try:
+                result.put((True, fn(*args)))
+            except BaseException as exc:
+                result.put((False, exc))
+
+        threading.Thread(target=worker, name="lmh-tool-network",
+                         daemon=True).start()
+        stop_event = getattr(agent, "_stop", None)
+        while True:
+            if stop_event is not None and stop_event.is_set():
+                return "Error: network tool stopped by user."
+            try:
+                ok, value = result.get(timeout=0.1)
+            except queue.Empty:
+                continue
+            if ok:
+                return str(value)
+            if isinstance(value, BaseException):
+                raise value
+            raise RuntimeError(str(value))
 
     def read_file_t(agent, path: str, start_line: int = 1,
                     max_lines: int = 200) -> str:
@@ -266,7 +304,8 @@ def build_registry(skills_manager) -> ToolRegistry:
         return visual_check(
             resolved, workspace, viewports=viewports,
             click_selector=click_selector, scroll_selector=scroll_selector,
-            state_label=state_label, wait_ms=wait_ms, full_page=full_page)
+            state_label=state_label, wait_ms=wait_ms, full_page=full_page,
+            stop_event=getattr(agent, "_stop", None))
 
     reg.register({
         "name": "visual_check",
@@ -321,13 +360,19 @@ def build_registry(skills_manager) -> ToolRegistry:
         }, "required": ["command"]},
     }, run_t)
 
+    def web_search_t(agent, query: str) -> str:
+        return _cancellable(agent, web_search, query)
+
     reg.register({
         "name": "web_search",
         "description": "Search the web. Returns titles, URLs and snippets.",
         "parameters": {"type": "object", "properties": {
             "query": {"type": "string"},
         }, "required": ["query"]},
-    }, web_search)
+    }, web_search_t)
+
+    def fetch_t(agent, url: str) -> str:
+        return _cancellable(agent, fetch_url, url)
 
     reg.register({
         "name": "fetch",
@@ -335,7 +380,7 @@ def build_registry(skills_manager) -> ToolRegistry:
         "parameters": {"type": "object", "properties": {
             "url": {"type": "string"},
         }, "required": ["url"]},
-    }, fetch_url)
+    }, fetch_t)
 
     def browser_tool(agent, action: str, url: str | None = None,
                      ref: str | None = None, text: str | None = None,
@@ -368,7 +413,7 @@ def build_registry(skills_manager) -> ToolRegistry:
     computer_current_app: str | None = None
     computer_last_reports: dict[str, str] = {}
 
-    def computer_tool(action: str, app: str | None = None,
+    def computer_tool(agent, action: str, app: str | None = None,
                       element: str | None = None, text: str | None = None,
                       query: str | None = None,
                       key: str | None = None, direction: str | None = None,
@@ -520,7 +565,15 @@ def build_registry(skills_manager) -> ToolRegistry:
             args["action"] = secondary_action
         if action == "focus":
             args["action"] = "SetFocus"
-        result = MCP_HUB.call(public, args)
+        try:
+            result = MCP_HUB.call(
+                public, args, stop_event=getattr(agent, "_stop", None))
+        except TypeError as exc:
+            # Compatibility for lightweight third-party/legacy hubs whose
+            # call protocol predates cancellation forwarding.
+            if "stop_event" not in str(exc):
+                raise
+            result = MCP_HUB.call(public, args)
         tool_report: str = result
         marker_payload: dict | None = None
         if result.startswith("__MCP_IMAGE_RESULT__:"):
@@ -605,15 +658,25 @@ def build_registry(skills_manager) -> ToolRegistry:
         }, "required": ["action"]},
     }, mcp_tool)
 
-    def load_skill(name: str) -> str:
-        return skills_manager.load(name)
+    def load_skill(action: str = "load", name: str | None = None,
+                   query: str | None = None) -> str:
+        # Backward compatible with older models that emitted only {name}.
+        if action == "search":
+            return skills_manager.search(query or name or "")
+        if action == "load":
+            if not name:
+                return "Error: skill load requires name."
+            return skills_manager.load(name)
+        return "Error: skill action must be 'search' or 'load'."
 
     reg.register({
         "name": "skill",
-        "description": "Load instructions for a relevant skill that was not already auto-loaded. Call before that specialized work, once per skill per turn.",
+        "description": "Search installed skills by capability, then activate one relevant skill. Loaded instructions appear in the next model step; load each skill once.",
         "parameters": {"type": "object", "properties": {
-            "name": {"type": "string", "description": "skill name from the list in the system prompt"},
-        }, "required": ["name"]},
+            "action": {"type": "string", "enum": ["search", "load"], "description": "default load for backward compatibility"},
+            "query": {"type": "string", "description": "capability phrase for search"},
+            "name": {"type": "string", "description": "exact skill name for load"},
+        }},
     }, load_skill)
 
     def save_skill_tool(agent, name: str, hint: str, content: str,

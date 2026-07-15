@@ -979,10 +979,16 @@ class TranscriptView(QScrollArea):
             self.add_item({"t": "error" if kind == "error" else "notice",
                            "text": str(data)})
         elif kind == "activity" and isinstance(data, dict):
-            phase = str(data.get("phase", "working")).replace("_", " ").title()
+            raw = str(data.get("phase", "working"))
+            phase = {"model_wait": "Evaluating prompt",
+                     "continuing": "Continuing response"}.get(
+                         raw, raw.replace("_", " ").title())
             self.show_activity(phase)
         elif kind == "heartbeat" and isinstance(data, dict):
-            phase = str(data.get("phase", "working")).replace("_", " ").title()
+            raw = str(data.get("phase", "working"))
+            phase = {"model_wait": "Evaluating prompt",
+                     "continuing": "Continuing response"}.get(
+                         raw, raw.replace("_", " ").title())
             elapsed = int(data.get("elapsed_seconds", 0))
             self.show_activity(f"{phase} · {elapsed}s")
         elif kind == "final":

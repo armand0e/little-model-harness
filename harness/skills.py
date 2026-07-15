@@ -7,6 +7,7 @@ This is the main context-saving mechanism of the harness.
 """
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -143,10 +144,27 @@ def _parse_skill_md(path: Path) -> Skill | None:
         if ":" in line:
             k, v = line.split(":", 1)
             fields[k.strip()] = v.strip()
+    try:
+        local_meta = json.loads(
+            path.with_name(".lmh-meta.json").read_text(encoding="utf-8"))
+        if isinstance(local_meta, dict):
+            for key in ("category", "hint"):
+                if key not in fields and isinstance(local_meta.get(key), str):
+                    fields[key] = local_meta[key]
+    except (OSError, json.JSONDecodeError):
+        pass
     name = (fields.get("name") or path.parent.name).strip().lower()
     if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,59}", name):
         return None
-    desc = " ".join(fields.get("description", "").split())[:500]
+    raw_desc = fields.get("description", "")
+    if raw_desc.startswith('"') and raw_desc.endswith('"'):
+        try:
+            decoded = json.loads(raw_desc)
+            if isinstance(decoded, str):
+                raw_desc = decoded
+        except json.JSONDecodeError:
+            pass
+    desc = " ".join(raw_desc.split())[:500]
     hint = _compact_hint(fields.get("hint") or desc)
     category = fields.get("category") or _inferred_category(name)
     if category not in CATEGORY_ORDER:
@@ -189,6 +207,49 @@ class SkillsManager:
                          for s in sorted(groups[cat], key=lambda s: s.name))
         return "\n".join(lines)
 
+    def catalog_text(self, detail: str = "names") -> str:
+        """A compact discovery catalog; full descriptions are searchable."""
+        groups: dict[str, list[str]] = {}
+        for skill in self.skills.values():
+            groups.setdefault(skill.category, []).append(skill.name)
+        if detail == "topics":
+            topics = ", ".join(cat for cat in CATEGORY_ORDER if cat in groups)
+            return (f"Installed skill topics: {topics}. Use skill search with a "
+                    "capability phrase; then load one exact result.")
+        lines = []
+        for category in CATEGORY_ORDER:
+            names = sorted(groups.get(category, []))
+            if names:
+                lines.append(f"{category}: {', '.join(names)}")
+        return "\n".join(lines)
+
+    def search(self, query: str, limit: int = 8) -> str:
+        """Return a small ranked slice instead of dumping the whole catalog."""
+        normalized = " ".join(query.casefold().split())
+        terms = set(re.findall(r"[a-z0-9]{2,}", normalized))
+        if not terms:
+            return "Error: give a capability phrase to search installed skills."
+        ranked: list[tuple[int, str, Skill]] = []
+        for skill in self.skills.values():
+            name_words = set(skill.name.split("-"))
+            text_words = set(re.findall(
+                r"[a-z0-9]{2,}",
+                f"{skill.name} {skill.description} {skill.hint}".casefold()))
+            score = 4 * len(terms & name_words) + len(terms & text_words)
+            if normalized and normalized in skill.description.casefold():
+                score += 3
+            if score:
+                ranked.append((-score, skill.name, skill))
+        if not ranked:
+            return (f"No installed skills matched {query!r}. Try a broader "
+                    "capability such as 'browser', 'debugging', or 'documents'.")
+        ranked.sort()
+        lines = [f"Skills matching {query!r}:"]
+        for _, _, skill in ranked[:max(1, min(limit, 12))]:
+            lines.append(f"- {skill.name}: {skill.description or skill.hint}")
+        lines.append("Load only the one most relevant skill unless the task spans domains.")
+        return "\n".join(lines)
+
     def recommend(self, text: str, limit: int = 3) -> list[str]:
         """Select strongly relevant skills without relying on model tool use.
 
@@ -227,14 +288,29 @@ class SkillsManager:
         self.loaded.add(name)
         return True
 
-    def active_text(self) -> str:
+    def active_text(self, max_chars: int | None = None) -> str:
         blocks = []
-        for name in sorted(self.loaded):
+        names = sorted(self.loaded)
+        remaining = max_chars
+        for index, name in enumerate(names):
             skill = self.skills.get(name)
             if skill:
-                blocks.append(
-                    f"[active skill: {name}]\n"
-                    + skill.body.replace("{dir}", str(skill.dir)))
+                body = skill.body.replace("{dir}", str(skill.dir))
+                if remaining is not None:
+                    slots = max(1, len(names) - index)
+                    allowance = max(240, remaining // slots)
+                    header_cost = len(name) + 20
+                    body_allowance = max(120, allowance - header_cost)
+                    if len(body) > body_allowance:
+                        tail = min(body_allowance // 4, 500)
+                        head = max(80, body_allowance - tail - 55)
+                        body = (body[:head].rstrip()
+                                + "\n[...skill condensed for context budget...]\n"
+                                + body[-tail:].lstrip())
+                block = f"[active skill: {name}]\n{body}"
+                blocks.append(block)
+                if remaining is not None:
+                    remaining = max(0, remaining - len(block) - 2)
         return "\n\n".join(blocks)
 
     def load(self, name: str) -> str:
@@ -247,9 +323,8 @@ class SkillsManager:
             return (f"[skill: {name}] is already active for this turn; its "
                     "instructions are in the system prompt.")
         self.loaded.add(name)
-        # {dir} lets skill bodies reference their own helper scripts portably.
-        return (f"[skill: {name}]\n"
-                + skill.body.replace("{dir}", str(skill.dir)))
+        return (f"Activated skill '{name}'. Its instructions are now in the "
+                "system prompt; continue the task using them.")
 
     def reset(self) -> None:
         self.loaded.clear()
@@ -292,10 +367,15 @@ def save_skill(name: str, hint: str, content: str,
         return ("Error: skill body would exceed 8000 chars — trim it or "
                 "split into two skills.")
     try:
+        # Keep SKILL.md portable: standard frontmatter has only name and
+        # description. Grouping/hints are inferred by this harness.
         atomic_write_text(
             path,
-            f"---\nname: {name}\ndescription: {desc}\ncategory: {category}\n"
-            f"hint: {hint}\n---\n{body}\n",
+            f"---\nname: {name}\ndescription: {json.dumps(desc)}\n---\n{body}\n",
+        )
+        atomic_write_text(
+            path.with_name(".lmh-meta.json"),
+            json.dumps({"category": category, "hint": hint}, indent=2) + "\n",
         )
     except OSError as e:
         return f"Error: could not save skill: {e}"

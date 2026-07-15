@@ -1,13 +1,14 @@
 """Web tools: search (keyless, free) and page fetch — no external parsing deps.
 
 Search uses DuckDuckGo's HTML endpoints directly (we're server-side, so no
-CORS games needed). Page fetch falls back to the keyless r.jina.ai reader
-when a page yields no useful text (JS-heavy sites).
+CORS games needed). A third-party reader fallback is explicit opt-in because
+forwarding a target URL can disclose private query parameters.
 """
 from __future__ import annotations
 
 import re
 import ipaddress
+import os
 import socket
 import urllib.parse
 from html.parser import HTMLParser
@@ -190,7 +191,15 @@ def _direct_search(query: str) -> str:
 
 
 def _jina_reader(url: str) -> str | None:
-    """Keyless fallback reader that renders JS-heavy pages to markdown."""
+    """Opt-in reader for public, non-sensitive URLs only."""
+    if os.environ.get("LMH_ALLOW_REMOTE_READER", "").casefold() not in {
+            "1", "true", "yes", "on"}:
+        return None
+    parts = urllib.parse.urlsplit(url)
+    # Query strings routinely contain auth codes, signed URLs, document IDs,
+    # and search terms. Never send them to an unrelated reader service.
+    if parts.query or parts.fragment:
+        return None
     try:
         r = httpx.get(f"https://r.jina.ai/{url}", timeout=40.0,
                       headers={**UA, "X-Return-Format": "markdown"})

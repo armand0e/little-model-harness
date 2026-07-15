@@ -80,8 +80,10 @@ def visual_check(target: str | Path, output_root: Path,
                  viewports: str = "desktop,mobile",
                  click_selector: str = "", scroll_selector: str = "",
                  state_label: str = "default", wait_ms: int = 700,
-                 full_page: bool = False) -> str:
+                 full_page: bool = False, stop_event=None) -> str:
     """Render a local HTML file or loopback URL and return screenshots + QA."""
+    if stop_event is not None and stop_event.is_set():
+        return "Error: visual verification stopped by user."
     browser_path = _find_browser()
     if not browser_path:
         return ("Visual QA unavailable: no Chrome, Edge, or Chromium executable "
@@ -121,6 +123,8 @@ def visual_check(target: str | Path, output_root: Path,
                 args=["--disable-gpu"])
             try:
                 for name in selected:
+                    if stop_event is not None and stop_event.is_set():
+                        return "Error: visual verification stopped by user."
                     width, height = VIEWPORTS[name]
                     context = browser.new_context(
                         viewport={"width": width, "height": height},
@@ -151,7 +155,15 @@ def visual_check(target: str | Path, output_root: Path,
                         if scroll_selector:
                             page.locator(scroll_selector).first.scroll_into_view_if_needed(
                                 timeout=5000)
-                        page.wait_for_timeout(wait_ms)
+                        # Short waits keep the Stop button responsive even
+                        # when a page requests a long settle time.
+                        remaining = wait_ms
+                        while remaining > 0:
+                            if stop_event is not None and stop_event.is_set():
+                                return "Error: visual verification stopped by user."
+                            chunk = min(remaining, 100)
+                            page.wait_for_timeout(chunk)
+                            remaining -= chunk
                         diag = page.evaluate("""() => {
                           const root = document.documentElement;
                           const body = document.body;

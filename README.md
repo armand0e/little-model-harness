@@ -124,6 +124,12 @@ The harness asks the model server for its real context window and clamps the
 configured window to it. Output tokens are capped by both the user setting and
 the remaining prompt budget. Tool-result limits scale with the window.
 
+Each turn receives an automatic compact, lean, balanced, or full capability
+profile based on the real window and the task. Only relevant tool schemas are
+sent to the model, the selection remains stable for the turn, and configured
+MCP catalogs stay behind progressive `mcp` search. The context tooltip shows
+the active profile, system/tool/conversation token split, and exposed tools.
+
 Compaction reserves generation headroom and can run during a long tool loop,
 not only between user turns. It preserves the goal, recent decisions, file
 state, errors, and unresolved work. If model summarization is unavailable, a
@@ -147,10 +153,12 @@ description: When and why the model should use this skill.
 ---
 ```
 
-At the beginning of every Code turn, deterministic routing preloads up to
-three strongly relevant skills. Selection is visible as a completed skill
+At the beginning of every Code turn, deterministic routing preloads one to
+three strongly relevant skills according to context capacity. Selection is visible as a completed skill
 card, so it does not depend on a small model remembering to call `skill`.
-The model can load another skill later. The catalog refreshes between turns,
+The prompt contains only a compact catalog; the model can search it by
+capability and activate another skill later. Active skill text has a
+window-aware budget and is never duplicated into the tool result. The catalog refreshes between turns,
 and `save_skill` writes learned skills to the per-user data directory so the
 installed application remains read-only.
 
@@ -175,7 +183,8 @@ rotated automatically.
 
 ### Tools
 
-The core Code environment exposes:
+The Code environment can expose the following capabilities; the per-turn
+profile sends only the subset relevant to the request:
 
 - `read_file`, `write_file`, `edit_file`, `list_dir`, and `search`;
 - `run` for bounded PowerShell/bash commands;
@@ -186,9 +195,13 @@ The core Code environment exposes:
 - `mcp` for namespaced third-party MCP tools;
 - `skill`, `save_skill`, `remember`, `history_search`, and `subtask`.
 
-Tool calls, results, errors, and screenshots are shown in the conversation.
+Direct MCP schemas are not dumped into every prompt; `mcp` searches and calls
+the configured catalog on demand. Tool calls, results, errors, and screenshots are shown in the conversation.
 Stopping a turn propagates to the model stream and active subtask. Shell and
-browser operations are bounded rather than allowed to hang indefinitely.
+browser, web, computer, visual-check, and MCP operations observe cancellation
+rather than being allowed to hold a stopped job open. Truncated text responses
+continue automatically, while repeated identical failed calls trigger recovery
+guidance and then stop before exhausting the step limit.
 
 ### MCP and computer control
 
@@ -251,6 +264,8 @@ Important overrides:
 - `LMH_BASE_URL`, `LMH_MODEL`, `LMH_API_KEY`
 - `LMH_WORKSPACE`, `LMH_DATA_DIR`
 - `LMH_DISABLE_COMPUTER_USE`, `LMH_COMPUTER_USE_BIN`
+- `LMH_ALLOW_REMOTE_READER=1` opts into forwarding query-free public URLs to
+  the third-party Jina reader when direct page extraction fails (off by default)
 - `LMH_NO_WINDOW=1` for compatibility server-only mode
 
 A repository-local `harness.toml` can set fields from `harness/config.py`.
@@ -271,7 +286,7 @@ bash packaging/build_macos.sh
 ```
 
 `.github/workflows/build.yml` tests and packages every push to `main` on
-native runners. A semantic tag such as `v2.0.0` publishes a GitHub release
+native runners. A semantic tag such as `v2.1.0` publishes a GitHub release
 containing:
 
 - `LittleHarness-Setup.exe`

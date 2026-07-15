@@ -1882,6 +1882,8 @@ function updateCtx(ctx) {
     ctx.system_tokens != null ? `System: ${ctx.system_tokens.toLocaleString()}` : null,
     ctx.tool_schema_tokens != null ? `Tools: ${ctx.tool_schema_tokens.toLocaleString()}` : null,
     ctx.conversation_tokens != null ? `Conversation: ${ctx.conversation_tokens.toLocaleString()}` : null,
+    ctx.tool_profile ? `Profile: ${ctx.tool_profile}` : null,
+    Array.isArray(ctx.tools_available) && ctx.tools_available.length ? `Available tools: ${ctx.tools_available.join(", ")}` : null,
     ctx.compact_target != null ? `Post-compaction target: ${ctx.compact_target.toLocaleString()}` : null,
     ctx.compactions ? `Compacted ${ctx.compactions} time${ctx.compactions === 1 ? "" : "s"}` : null,
     ctx.last_prompt_tokens ? `Last server-reported prompt: ${ctx.last_prompt_tokens.toLocaleString()}` : null,
@@ -2007,6 +2009,8 @@ function makeTurnRenderer(state) {
         : `${data.characters || 0} chars`;
       label = `Preparing ${data.tool || "tool call"} · ${amount}`;
     } else if (data.phase === "starting") label = "Starting model";
+    else if (data.phase === "model_wait") label = "Evaluating prompt";
+    else if (data.phase === "continuing") label = "Continuing response";
     else if (data.phase === "reasoning") label = "Reasoning";
     else if (data.phase === "answering") label = "Writing response";
     else if (data.phase === "running_tool") label = `Running ${data.tool || "tool"}`;
