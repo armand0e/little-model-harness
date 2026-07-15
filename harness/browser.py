@@ -602,9 +602,10 @@ def control(action: str, *, url: str | None = None, ref: str | None = None,
             page.keyboard.press(key)
         elif action == "click_at":
             size = page.viewport_size or {"width": 1280, "height": 720}
-            page.mouse.click(
-                min(max(float(x), 0.0), size["width"] - 1),
-                min(max(float(y), 0.0), size["height"] - 1))
+            px = float(x if x is not None else 0.0)
+            py = float(y if y is not None else 0.0)
+            page.mouse.click(min(max(px, 0.0), size["width"] - 1),
+                             min(max(py, 0.0), size["height"] - 1))
         elif action == "type_text":
             page.keyboard.type(str(text), delay=12)
         elif action == "scroll":

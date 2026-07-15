@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import weakref
 from html import escape
+from typing import Any
 
 from PySide6.QtCore import QByteArray, QRectF, QSize, Qt
 from PySide6.QtGui import QIcon, QPainter, QPixmap
@@ -17,7 +18,7 @@ from PySide6.QtSvg import QSvgRenderer
 # Widgets that accept the default are recorded so a theme switch can retint
 # them in place; explicit colors (accents, white-on-primary) are kept as-is.
 _DEFAULT_COLOR = "#a3a094"
-_REGISTRY: "weakref.WeakKeyDictionary[object, tuple[str, int, str | None]]" = (
+_REGISTRY: "weakref.WeakKeyDictionary[Any, tuple[str, int, str | None]]" = (
     weakref.WeakKeyDictionary())
 
 

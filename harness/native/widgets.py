@@ -308,7 +308,7 @@ class _BrowserView(QLabel):
     text_typed = Signal(str)
     key_pressed = Signal(str)
 
-    _KEYS = {
+    _KEYS: dict[int, str] = {
         Qt.Key.Key_Return: "Enter", Qt.Key.Key_Enter: "Enter",
         Qt.Key.Key_Backspace: "Backspace", Qt.Key.Key_Delete: "Delete",
         Qt.Key.Key_Tab: "Tab", Qt.Key.Key_Escape: "Escape",
@@ -366,7 +366,9 @@ class _BrowserView(QLabel):
         super().wheelEvent(event)
 
     def keyPressEvent(self, event: QKeyEvent) -> None:  # noqa: N802
-        combo = self._KEYS.get(Qt.Key(event.key()))
+        # Plain int lookup: Qt.Key(...) raises ValueError for keys outside
+        # the enum (media keys and other exotics).
+        combo = self._KEYS.get(event.key())
         modifiers = event.modifiers()
         control = bool(modifiers & Qt.KeyboardModifier.ControlModifier)
         alt = bool(modifiers & Qt.KeyboardModifier.AltModifier)
@@ -398,7 +400,7 @@ def _pty_sequence(event: QKeyEvent) -> str | None:
         return None  # reserved for copy/paste chords handled by the widget
     if control and Qt.Key.Key_A <= key <= Qt.Key.Key_Z:
         return chr(key - Qt.Key.Key_A + 1)
-    specials = {
+    specials: dict[int, str] = {
         Qt.Key.Key_Return: "\r", Qt.Key.Key_Enter: "\r",
         Qt.Key.Key_Backspace: "\x7f", Qt.Key.Key_Tab: "\t",
         Qt.Key.Key_Backtab: "\x1b[Z", Qt.Key.Key_Escape: "\x1b",
@@ -445,7 +447,7 @@ class _UnixPty:
     def __init__(self, cwd: Path, cols: int, rows: int) -> None:
         import pty
         shell = os.environ.get("SHELL", "/bin/bash")
-        pid, fd = pty.fork()
+        pid, fd = pty.fork()  # type: ignore[attr-defined]  # unix-only
         if pid == 0:  # child
             # The child must never return into the Qt process on failure —
             # that would leave a forked duplicate of the app running.
@@ -474,12 +476,14 @@ class _UnixPty:
         import fcntl
         import struct
         import termios
-        fcntl.ioctl(self._fd, termios.TIOCSWINSZ,
-                    struct.pack("HHHH", rows, cols, 0, 0))
+        fcntl.ioctl(  # type: ignore[attr-defined]  # unix-only
+            self._fd, termios.TIOCSWINSZ,  # type: ignore[attr-defined]
+            struct.pack("HHHH", rows, cols, 0, 0))
 
     def alive(self) -> bool:
         try:
-            finished, _status = os.waitpid(self._pid, os.WNOHANG)
+            finished, _status = os.waitpid(
+                self._pid, os.WNOHANG)  # type: ignore[attr-defined]
             return finished == 0
         except ChildProcessError:
             return False
@@ -706,7 +710,8 @@ class PtyTerminalWidget(QWidget):
         self._pty.close()
 
 
-def create_terminal(workspace: Path | None = None) -> QWidget:
+def create_terminal(
+        workspace: Path | None = None) -> "PtyTerminalWidget | TerminalWidget":
     """A real PTY terminal when the runtime supports it, else the pipe UI."""
     try:
         return PtyTerminalWidget(workspace)
@@ -1379,8 +1384,9 @@ class WelcomePanel(QFrame):
             else "Good afternoon" if hour < 18 else "Good evening")
         while self.pill_row.count():
             item = self.pill_row.takeAt(0)
-            if item.widget() is not None:
-                item.widget().deleteLater()
+            widget = item.widget() if item is not None else None
+            if widget is not None:
+                widget.deleteLater()
         self.pill_row.addStretch(1)
         for label, icon in self._PILLS.get(mode, self._PILLS["agent"]):
             pill = QPushButton(label)
@@ -1431,7 +1437,7 @@ class TranscriptView(QScrollArea):
         self._assistant: MarkdownView | None = None
         self._assistant_text = ""
         self._tool: ToolCard | None = None
-        self._activity: QLabel | None = None
+        self._activity: QWidget | None = None
         self._welcome: QFrame | None = None
         self._scroll_settle = QTimer(self)
         self._scroll_settle.setSingleShot(True)
@@ -1545,7 +1551,8 @@ class TranscriptView(QScrollArea):
         fade.setStartValue(0.0)
         fade.setEndValue(1.0)
         fade.setEasingCurve(QEasingCurve.Type.OutCubic)
-        fade.finished.connect(lambda: frame.setGraphicsEffect(None))
+        fade.finished.connect(
+            lambda: frame.setGraphicsEffect(None))  # type: ignore[arg-type]
         fade.start(QPropertyAnimation.DeletionPolicy.DeleteWhenStopped)
 
     def _resize_welcome(self) -> None:
