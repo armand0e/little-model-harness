@@ -7,11 +7,11 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2l7 10-7 10-7-10z' fill='%23c96442'/%3E%3C/svg%3E">
 <style>
   :root {
-    --bg: #f4f3ee; --panel: #fbfaf7; --raised: #ffffff;
+    --bg: #f0eee6; --panel: #f6f4ec; --raised: #faf8f0;
     --text: #1f1e1b; --muted: #75726a; --faint: #a5a297;
-    --border: #e4e2da; --border-soft: #edebe4;
-    --accent: #c96442; --accent-hover: #b55638; --accent-soft: #f4e3dc;
-    --user-bg: #e8e6df; --code-bg: #f0efe9; --shadow: 0 1px 4px rgba(40,35,25,.08);
+    --border: #e0ddd2; --border-soft: #e8e5da;
+    --accent: #c96442; --accent-hover: #b55638; --accent-soft: #f2e1d8;
+    --user-bg: #e6e3d8; --code-bg: #edeadf; --shadow: 0 1px 4px rgba(40,35,25,.08);
     --err: #b3452f; --ok: #4f7a4f;
   }
   [data-theme="dark"] {
@@ -24,7 +24,9 @@
   }
   * { box-sizing: border-box; margin: 0; }
   html, body { height: 100%; }
-  html.desktop-shell body { padding-top: 36px; }
+  /* The window bar must stay 36 real pixels tall to line up with the native
+     caption-button overlay, so it divides out the text-size zoom factor. */
+  html.desktop-shell body { padding-top: calc(36px / var(--ui-zoom, 1)); }
   body {
     font: 15px/1.6 -apple-system, "Segoe UI", system-ui, sans-serif;
     background: var(--bg); color: var(--text); display: flex; overflow: hidden;
@@ -36,7 +38,8 @@
   ::-webkit-scrollbar-track { background: transparent; }
 
   /* ============ frameless desktop chrome ============ */
-  #windowbar { display: none; position: fixed; inset: 0 0 auto 0; height: 36px;
+  #windowbar { display: none; position: fixed; inset: 0 0 auto 0;
+    height: calc(36px / var(--ui-zoom, 1));
     z-index: 110; align-items: center; color: var(--muted);
     background: color-mix(in srgb, var(--panel) 94%, #000 6%);
     border-bottom: 1px solid var(--border); user-select: none; }
@@ -55,7 +58,8 @@
   /* Electron draws native caption buttons as a themed overlay — hide the
      in-page ones and reserve their space in the drag strip. */
   html.electron-shell .window-controls { display: none; }
-  html.electron-shell .window-drag { padding-right: 150px; }
+  html.electron-shell .window-drag {
+    padding-right: calc(150px / var(--ui-zoom, 1)); }
 
   /* ============ sidebar ============ */
   #sidebar {
@@ -161,7 +165,9 @@
   #chat-title { flex: 1; font-weight: 600; font-size: 14.5px; white-space: nowrap;
                 overflow: hidden; text-overflow: ellipsis; }
   /* quiet inline model picker, bottom-right of the composer */
-  #modelselect { max-width: 220px; font-size: 12px; color: var(--muted);
+  #modelselect { max-width: 220px; min-width: 0; flex-shrink: 1;
+    font-size: 12px; color: var(--muted);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     border: none; padding: 5px 22px 5px 9px; border-radius: 8px;
     background: transparent; outline: none; cursor: pointer;
     appearance: none; -webkit-appearance: none;
@@ -349,7 +355,8 @@
     background: transparent; color: var(--text); font: inherit; max-height: 200px; }
   #input::placeholder { color: var(--faint); }
   .comp-row { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
-  .comp-hint { flex: 1; font-size: 11.5px; color: var(--faint); }
+  .comp-hint { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden;
+    text-overflow: ellipsis; font-size: 11.5px; color: var(--faint); }
   #wsbar { max-width: 760px; margin: 0 auto 7px; display: flex; gap: 7px; }
   #wschip {
     display: inline-flex; align-items: center; gap: 6px; font-size: 12px;
@@ -603,7 +610,7 @@
   .art-tab .x:hover { opacity: 1; }
   .art-acts button { padding: 5px 8px; border-radius: 7px; color: var(--muted); font-size: 13px; }
   .art-acts button:hover { background: var(--border-soft); color: var(--text); }
-  #artview { flex: 1; position: relative; background: #fffdf9; }
+  #artview { flex: 1; position: relative; background: #faf8f0; }
   #artview iframe { width: 100%; height: 100%; border: none; position: absolute; inset: 0; }
   #artview .art-empty { position: absolute; inset: 0; display: flex; align-items: center;
     justify-content: center; color: var(--faint); font-size: 13px; text-align: center; }
@@ -2682,6 +2689,9 @@ function populateSettings(s) {
 function applyUiScale(scale) {
   const factor = Math.max(80, Math.min(150, Number(scale) || 100)) / 100;
   document.body.style.zoom = factor === 1 ? "" : String(factor);
+  // Lets fixed-height chrome (window bar) divide the zoom back out so it
+  // keeps matching the 36px native caption-button overlay.
+  document.documentElement.style.setProperty("--ui-zoom", String(factor));
 }
 function renderSettingsInfo(s) {
   const mcpReady = (s.mcp_status || []).filter(x => x.state === "ready");
@@ -2853,7 +2863,7 @@ function applyTheme(t) {
     const dark = document.documentElement.dataset.theme === "dark";
     window.lmhShell.setTitleBarOverlay(dark
       ? { color: "#2b2a27", symbolColor: "#a3a094" }
-      : { color: "#efece4", symbolColor: "#6d6a62" });
+      : { color: "#e7e5de", symbolColor: "#6d6a62" });
   }
 }
 $("themebtn").onclick = () => {
@@ -2862,6 +2872,11 @@ $("themebtn").onclick = () => {
 };
 applyTheme(new URLSearchParams(location.search).get("theme")
            || localStorage.lmhTheme || "system");
+// Follow live OS theme flips while in "system" mode (also re-syncs the
+// Electron caption-button overlay).
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+  if ((localStorage.lmhTheme || "system") === "system") applyTheme("system");
+});
 
 /* ---------------- wiring ---------------- */
 function autogrow() {
