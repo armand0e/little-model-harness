@@ -153,16 +153,34 @@ def web_search(query: str) -> str:
         return "Error: search query is empty."
     if len(query) > 500:
         return "Error: search query is too long (500 character limit)."
+    results, error = search_results(query)
+    if results:
+        return _format_results(query, results, "search")
+    return f"Error: search failed ({error}). Try different words or fetch a site directly."
+
+
+def search_results(query: str) -> tuple[list[dict], str]:
+    """Structured results for programmatic callers (deep research mode).
+
+    Returns (results, error). ``results`` entries have title/url/snippet;
+    ``error`` describes the failure when the list is empty.
+    """
+    query = " ".join(query.split())
+    if not query or len(query) > 500:
+        return [], "invalid query"
     from .. import browser
     if browser.available():
         try:
-            return _format_results(query, browser.search(query), "browser")
+            results = [x for x in browser.search(query)
+                       if x.get("url", "").startswith("http")][:8]
+            if results:
+                return results, ""
         except Exception:
             pass  # fall through to the httpx path
-    return _direct_search(query)
+    return _direct_search_results(query)
 
 
-def _direct_search(query: str) -> str:
+def _direct_search_results(query: str) -> tuple[list[dict], str]:
     q = urllib.parse.quote_plus(query)
     endpoints = [
         f"https://html.duckduckgo.com/html/?q={q}",
@@ -186,8 +204,8 @@ def _direct_search(query: str) -> str:
             pass
         results = [x for x in parser.results if x["title"].strip()][:8]
         if results:
-            return _format_results(query, results, "direct")
-    return f"Error: search failed ({last_err}). Try different words or fetch a site directly."
+            return results, ""
+    return [], last_err
 
 
 def _jina_reader(url: str) -> str | None:

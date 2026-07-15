@@ -102,7 +102,7 @@ class Session:
         self.display: list[dict] = []   # UI-facing event log
         # each chat works in its own folder; new chats inherit the default
         self.workspace = workspace or str(get_default_workspace())
-        self.mode = mode if mode in {"agent", "chat"} else "agent"
+        self.mode = mode if mode in {"agent", "chat", "research"} else "agent"
         self._agent: Agent | None = None
         self._agent_state: dict | None = None
         self._safe_agent_state: dict | None = None
@@ -308,7 +308,7 @@ class Session:
                 or not math.isfinite(updated))):
             return None
         mode = data.get("mode", "agent")
-        if mode not in {"agent", "chat"}:
+        if mode not in {"agent", "chat", "research"}:
             return None
         s = cls(sid, str(data.get("title", "Chat"))[:80], created, workspace, mode)
         s.updated = updated if updated is not None else s.created
@@ -754,8 +754,8 @@ class CreateSessionBody(BaseModel):
 @app.post("/api/sessions")
 def create_session(body: CreateSessionBody | None = None):
     mode = body.mode if body else "agent"
-    if mode not in {"agent", "chat"}:
-        raise HTTPException(400, "mode must be 'agent' or 'chat'")
+    if mode not in {"agent", "chat", "research"}:
+        raise HTTPException(400, "mode must be 'agent', 'chat', or 'research'")
     s = Session(uuid.uuid4().hex[:12], mode=mode)
     with SESSIONS_LOCK:
         SESSIONS[s.id] = s
@@ -787,8 +787,8 @@ def rename_session(sid: str, body: RenameBody):
         if body.pinned is not None:
             s.pinned = body.pinned
         if body.mode is not None:
-            if body.mode not in {"agent", "chat"}:
-                raise HTTPException(400, "mode must be 'agent' or 'chat'")
+            if body.mode not in {"agent", "chat", "research"}:
+                raise HTTPException(400, "mode must be 'agent', 'chat', or 'research'")
             s.mode = body.mode
             if s._agent:
                 s._agent.tool_mode = s.mode == "agent"
@@ -1111,7 +1111,11 @@ class GenerationJob:
                 self._agent_started = True
             if self._cancel_requested.is_set():
                 agent.request_stop()
-            final = agent.run_turn(self.message, on_event=self.emit)
+            if session.mode == "research":
+                from .research import run_research
+                final = run_research(agent, self.message, on_event=self.emit)
+            else:
+                final = agent.run_turn(self.message, on_event=self.emit)
             self.flush_text("reasoning", self.reasoning_buf)
             self.flush_text("text", self.text_buf)
             if not any(item.get("t") == "text"

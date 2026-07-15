@@ -107,7 +107,7 @@ class MainWindow(QMainWindow):
         self.service = service
         self.mode = str(QSettings("LittleHarness", "LittleHarness").value(
             "mode", "agent"))
-        if self.mode not in {"agent", "chat"}:
+        if self.mode not in {"agent", "chat", "research"}:
             self.mode = "agent"
         self.current_id: str | None = None
         self.session_cache: list[dict] = []
@@ -190,14 +190,17 @@ class MainWindow(QMainWindow):
         layout.addLayout(brand_row)
         self.code_nav = QPushButton("Code tasks")
         self.chat_nav = QPushButton("Chat")
+        self.research_nav = QPushButton("Deep research")
         set_svg_icon(self.code_nav, "code", 14)
         set_svg_icon(self.chat_nav, "chat", 14)
-        for button in (self.code_nav, self.chat_nav):
+        set_svg_icon(self.research_nav, "research", 14)
+        for button in (self.code_nav, self.chat_nav, self.research_nav):
             button.setObjectName("navButton")
             button.setCheckable(True)
             layout.addWidget(button)
         self.code_nav.clicked.connect(lambda: self.set_mode("agent"))
         self.chat_nav.clicked.connect(lambda: self.set_mode("chat"))
+        self.research_nav.clicked.connect(lambda: self.set_mode("research"))
         self.new_button = QPushButton("New code task")
         set_svg_icon(self.new_button, "plus", 15, "#ffffff")
         self.new_button.setObjectName("primary")
@@ -424,27 +427,39 @@ class MainWindow(QMainWindow):
 
     # ---------- sessions and modes ----------
     def set_mode(self, mode: str) -> None:
-        if mode not in {"agent", "chat"}:
+        if mode not in {"agent", "chat", "research"}:
             return
         self.mode = mode
         QSettings("LittleHarness", "LittleHarness").setValue("mode", mode)
         self.code_nav.setChecked(mode == "agent")
         self.chat_nav.setChecked(mode == "chat")
-        self.new_button.setText("New code task" if mode == "agent" else "New chat")
-        self.history_label.setText("CODE HISTORY" if mode == "agent" else "CHAT HISTORY")
-        self.search.setPlaceholderText(
-            "Search code history…" if mode == "agent" else "Search chat history…")
-        if mode == "chat":
+        self.research_nav.setChecked(mode == "research")
+        labels = {
+            "agent": ("New code task", "CODE HISTORY",
+                      "Search code history…", "New task",
+                      "Message Little Harness…"),
+            "chat": ("New chat", "CHAT HISTORY",
+                     "Search chat history…", "New chat",
+                     "Message Little Harness…"),
+            "research": ("New research", "RESEARCH HISTORY",
+                         "Search research history…", "New research",
+                         "What should I research in depth?"),
+        }[mode]
+        self.new_button.setText(labels[0])
+        self.history_label.setText(labels[1])
+        self.search.setPlaceholderText(labels[2])
+        if mode != "agent":
             self.right_panel.hide()
-        self.workspace_button.setVisible(mode == "agent")
+        self.workspace_button.setVisible(mode in {"agent", "research"})
         self.attach_button.setVisible(mode == "agent")
         self.artifact_button.setVisible(mode == "agent")
-        self.files_button.setVisible(mode == "agent")
+        self.files_button.setVisible(mode in {"agent", "research"})
         self.terminal_button.setVisible(mode == "agent")
         self.browser_button.setVisible(mode == "agent")
         self.current_id = None
         self.transcript.render_display([], Path.cwd())
-        self.chat_title.setText("New task" if mode == "agent" else "New chat")
+        self.chat_title.setText(labels[3])
+        self.composer.setPlaceholderText(labels[4])
         self.refresh_sessions(open_latest=True)
 
     def refresh_sessions(self, open_latest: bool = False) -> None:
@@ -670,7 +685,7 @@ class MainWindow(QMainWindow):
         self.sidebar_toggle.setVisible(not visible)
 
     def toggle_right_panel(self, tab: int = 0) -> None:
-        if self.mode != "agent":
+        if self.mode == "chat":
             return
         if self.right_panel.isVisible() and self.right_tabs.currentIndex() == tab:
             self.right_panel.hide()
@@ -893,7 +908,7 @@ class MainWindow(QMainWindow):
                 self._show_error(str(exc))
 
     def refresh_right_panel(self) -> None:
-        if self.mode != "agent":
+        if self.mode == "chat":
             return
         index = self.right_tabs.currentIndex()
         if index == 1:

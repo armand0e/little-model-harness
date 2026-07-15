@@ -162,6 +162,12 @@ class Config:
     max_iterations: int = 100
     request_timeout: float = 600.0
 
+    # Deep research mode. Rounds are search->read->reflect cycles; sources is
+    # the total pages whose notes feed the report. Smaller context windows
+    # clamp these further (see research.Budget).
+    research_max_rounds: int = 3
+    research_max_sources: int = 12
+
     extra: dict = field(default_factory=dict)
 
 
@@ -240,6 +246,10 @@ def load_config() -> Config:
         cfg.tool_result_keep_turns, defaults.tool_result_keep_turns, int))
     cfg.max_iterations = max(1, min(
         1000, number(cfg.max_iterations, defaults.max_iterations, int)))
+    cfg.research_max_rounds = max(1, min(6, number(
+        cfg.research_max_rounds, defaults.research_max_rounds, int)))
+    cfg.research_max_sources = max(3, min(24, number(
+        cfg.research_max_sources, defaults.research_max_sources, int)))
     cfg.request_timeout = max(
         1.0, number(cfg.request_timeout, defaults.request_timeout, float))
     cfg.base_url = str(cfg.base_url or defaults.base_url).rstrip("/")

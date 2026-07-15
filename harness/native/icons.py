@@ -43,6 +43,7 @@ PATHS = {
     "file": '<path d="M6 2h8l4 4v16H6Z"/><path d="M14 2v6h6"/>',
     "terminal": '<path d="m5 7 5 5-5 5M12 17h7"/>',
     "browser": '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
+    "research": '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.4-4.4M8 11h6M11 8v6"/>',
     "arrow_left": '<path d="m15 18-6-6 6-6"/>',
     "arrow_right": '<path d="m9 18 6-6-6-6"/>',
     "image": '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9" r="1.5"/><path d="m21 15-5-5L5 20"/>',

@@ -54,13 +54,13 @@ class HarnessService:
 
     def sessions(self, mode: str | None = None) -> list[dict]:
         items = _call(server.list_sessions)
-        if mode in {"agent", "chat"}:
+        if mode in {"agent", "chat", "research"}:
             items = [item for item in items if item.get("mode", "agent") == mode]
         return items
 
     def search_sessions(self, query: str, mode: str | None = None) -> list[dict]:
         items = _call(server.search_chats, query)
-        if mode in {"agent", "chat"}:
+        if mode in {"agent", "chat", "research"}:
             items = [item for item in items if item.get("mode", "agent") == mode]
         return items
 

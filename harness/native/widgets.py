@@ -979,18 +979,10 @@ class TranscriptView(QScrollArea):
             self.add_item({"t": "error" if kind == "error" else "notice",
                            "text": str(data)})
         elif kind == "activity" and isinstance(data, dict):
-            raw = str(data.get("phase", "working"))
-            phase = {"model_wait": "Evaluating prompt",
-                     "continuing": "Continuing response"}.get(
-                         raw, raw.replace("_", " ").title())
-            self.show_activity(phase)
+            self.show_activity(_phase_label(data))
         elif kind == "heartbeat" and isinstance(data, dict):
-            raw = str(data.get("phase", "working"))
-            phase = {"model_wait": "Evaluating prompt",
-                     "continuing": "Continuing response"}.get(
-                         raw, raw.replace("_", " ").title())
             elapsed = int(data.get("elapsed_seconds", 0))
-            self.show_activity(f"{phase} · {elapsed}s")
+            self.show_activity(f"{_phase_label(data)} · {elapsed}s")
         elif kind == "final":
             self._remove_activity()
             if self._assistant is None and str(data).strip():
@@ -1019,6 +1011,25 @@ class TranscriptView(QScrollArea):
     def _scroll_bottom_now(self) -> None:
         bar = self.verticalScrollBar()
         bar.setValue(bar.maximum())
+
+
+_PHASE_LABELS = {
+    "model_wait": "Evaluating prompt",
+    "continuing": "Continuing response",
+    "research_scoping": "Scoping the research",
+    "research_searching": "Searching the web",
+    "research_reading": "Reading a source",
+    "research_reviewing": "Reviewing coverage",
+    "research_writing": "Writing the report",
+}
+
+
+def _phase_label(data: dict) -> str:
+    raw = str(data.get("phase", "working"))
+    label = _PHASE_LABELS.get(raw, raw.replace("_", " ").title())
+    if raw == "research_searching" and data.get("round"):
+        label += f" (round {data.get('round')}/{data.get('rounds', '?')})"
+    return label
 
 
 class JobWatcher(QThread):

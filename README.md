@@ -42,19 +42,47 @@ menus, selectors, file browser, previews, terminal, and browser inspector are
 native Qt widgets. Icons are bundled SVGs, not emoji or platform-dependent
 font glyphs.
 
-### Separate Code and Chat spaces
+### Separate Code, Chat, and Deep research spaces
 
-Code tasks and simple chats are selected in the sidebar. Each mode owns its
-own history and search results:
+Code tasks, simple chats, and deep research are selected in the sidebar. Each
+mode owns its own history and search results:
 
 - **Code** enables workspaces, attachments, files, artifacts, skills,
   terminal, managed browser, shell/file/web/computer tools, and MCP.
 - **Chat** is a lightweight text conversation without the coding/tool
   environment.
+- **Deep research** turns one request into a cited multi-source report (see
+  below).
 
-There is no duplicate Code/Chat switch in the top toolbar. Switching the
-sidebar section changes the visible history and starts new conversations in
-that mode; existing conversations are never silently converted.
+There is no duplicate mode switch in the top toolbar. Switching the sidebar
+section changes the visible history and starts new conversations in that
+mode; existing conversations are never silently converted.
+
+### Deep research mode
+
+Deep research runs a structured multi-phase pipeline instead of a free-form
+tool loop, so it stays dependable on small local models:
+
+1. **Scope** — one model call decides whether to ask up to three clarifying
+   questions (first turn only), answer a quick follow-up from the previous
+   report, or produce a research brief with sub-questions and initial search
+   queries.
+2. **Research rounds** — each round searches the web, has the model triage
+   which results to read, fetches the pages, and extracts source-grounded
+   notes. After a round, a reflection step either declares coverage complete
+   or issues new queries aimed at the remaining gaps.
+3. **Synthesis** — the model streams a markdown report with an executive
+   summary, thematic sections, tables where useful, and inline `[n]`
+   citations. A Sources section is appended deterministically from the notes
+   actually cited, and the report is saved to the conversation's workspace as
+   `research-report-<timestamp>.md`.
+
+Every model call in the pipeline is standalone and budget-bounded, so the
+mode works from 8k-context models upward and scales the number of rounds,
+queries, and sources with the window. Stop and mid-turn steering work the
+same as other modes; steering text is folded into the research brief at the
+next phase boundary. `research_max_rounds` and `research_max_sources` in
+`harness.toml` cap the effort.
 
 ### Models and settings
 
