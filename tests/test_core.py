@@ -1576,3 +1576,18 @@ def test_revert_also_undoes_saved_skills_and_memories(tmp_path, monkeypatch):
         assert not (tmp_path / "memory.md").exists()
     finally:
         agent.llm.close()
+
+
+def test_terminal_websocket_round_trip(isolated_server: Path):
+    with local_client() as client:
+        with client.websocket_connect(
+                "/api/terminal", headers={"host": "localhost"}) as ws:
+            ws.send_text(json.dumps({"resize": {"cols": 100, "rows": 24}}))
+            ws.send_text(json.dumps({"input": "echo LMH_WS_OK\r"}))
+            seen = ""
+            for _ in range(80):
+                seen += ws.receive_text()
+                # the command echo plus its output line
+                if seen.count("LMH_WS_OK") >= 2:
+                    break
+            assert seen.count("LMH_WS_OK") >= 2, seen[-400:]

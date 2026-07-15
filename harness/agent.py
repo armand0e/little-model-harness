@@ -386,10 +386,15 @@ class Agent:
 
     # ---- prompt assembly ----
     def system_prompt(self) -> str:
+        from .config import load_user_settings
         from .memory import load_memory
         mem = load_memory()
         memory_block = (f"\nMemory (facts you saved earlier):\n{mem}\n"
                         if mem else "")
+        rules = str(load_user_settings().get("global_rules") or "").strip()
+        if rules:
+            memory_block += ("\nUser rules (the user set these; follow them "
+                             f"in every chat):\n{rules[:1500]}\n")
         if not self.tool_mode:
             return CHAT_SYSTEM_PROMPT.format(
                 os_name=platform.system() + " " + platform.release(),

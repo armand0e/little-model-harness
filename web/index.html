@@ -428,6 +428,10 @@
   .dr-tabs button.active { color: var(--text); border-bottom-color: var(--accent);
     font-weight: 600; }
   .dr-body { flex: 1; overflow-y: auto; padding: 12px; }
+  #termpane { flex-direction: column; overflow: hidden; }
+  #termpane .term-host { flex: 1; min-height: 0; border: 1px solid var(--border);
+    border-radius: 9px; overflow: hidden; background: var(--code-bg); padding: 6px; }
+  #termpane .xterm .xterm-viewport { background: transparent; }
   .file-item { display: flex; align-items: center; gap: 10px; padding: 9px 10px;
     border-radius: 9px; cursor: pointer; font-size: 13px; }
   .file-item:hover { background: var(--border-soft); }
@@ -672,6 +676,9 @@
     #topbar { gap: 4px; }
   }
 </style>
+<link rel="stylesheet" href="/vendor/xterm.css">
+<script src="/vendor/xterm.js" defer></script>
+<script src="/vendor/addon-fit.js" defer></script>
 </head>
 <body class="booting">
 
@@ -780,8 +787,10 @@
     <button data-tab="files" class="active">Files</button>
     <button data-tab="skills">Skills</button>
     <button data-tab="memory">Memory</button>
+    <button data-tab="term">Terminal</button>
   </div>
   <div class="dr-body" id="drbody"></div>
+  <div class="dr-body" id="termpane" style="display:none"></div>
 </aside>
 
 <div id="sbback"></div>
@@ -820,8 +829,9 @@
         <input type="text" id="urlinput" class="set-text" placeholder="http://localhost:1234/v1" spellcheck="false">
       </div>
       <div class="set-row">
-        <label>Model ID</label>
-        <input type="text" id="modelinput" class="set-text" placeholder="llm"
+        <label>Model <span style="font-size:11px">blank = first from server</span></label>
+        <input type="text" id="modelinput" class="set-text"
+          placeholder="auto — first model the endpoint reports"
           list="modellist" spellcheck="false"><datalist id="modellist"></datalist>
       </div>
       <div class="set-row">
@@ -839,6 +849,19 @@
         <label>Max output <span style="font-size:11px">tokens per model call</span></label>
         <input type="number" id="maxoutinput" class="set-text" min="256" step="256" placeholder="4096">
       </div>
+      <div class="set-row">
+        <label>UI scale <span style="font-size:11px">whole app</span></label>
+        <select id="scaleinput" class="set-text">
+          <option value="80">80%</option><option value="90">90%</option>
+          <option value="100" selected>100%</option><option value="110">110%</option>
+          <option value="125">125%</option><option value="150">150%</option>
+        </select>
+      </div>
+    </div>
+    <div class="set-row">
+      <label>Global rules <span style="font-size:11px">followed in every conversation</span></label>
+      <textarea id="rulesinput" class="set-text" spellcheck="true" rows="3"
+        placeholder="Instructions the assistant always follows — tone, language, formatting, house rules…"></textarea>
     </div>
     <div class="set-row">
       <label>Additional MCP servers <span style="font-size:11px">local stdio JSON</span></label>
@@ -999,6 +1022,7 @@ const ICONS = {
   check: '<path d="M5 13l4 4L19 7"/>',
   circle: '<circle cx="12" cy="12" r="8"/>',
   arrowR: '<path d="M5 12h14M13 6l6 6-6 6"/>',
+  refresh: '<path d="M20 6v5h-5M4 18v-5h5"/><path d="M6.1 9a7 7 0 0 1 11.4-2.6L20 11M4 13l2.5 4.6A7 7 0 0 0 17.9 15"/>',
   clock: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
   branch: '<path d="M6 3v12"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/>',
   book: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>',
@@ -2484,6 +2508,10 @@ async function newFolder() {
 
 async function refreshDrawer() {
   if (!$("drawer").classList.contains("open")) return;
+  const isTerm = drawerTab === "term";
+  $("drbody").style.display = isTerm ? "none" : "";
+  $("termpane").style.display = isTerm ? "flex" : "none";
+  if (isTerm) { ensureTerminal(); return; }
   const body = $("drbody"); body.innerHTML = "";
   try {
    if (drawerTab === "files") {
@@ -2535,6 +2563,64 @@ async function refreshDrawer() {
       `Could not load ${drawerTab}: ${error.message || error}`));
   }
 }
+/* ---------------- interactive terminal (xterm.js) ---------------- */
+let term = null, termWs = null, termFit = null, termSid = null;
+function termTheme() {
+  const cs = getComputedStyle(document.body);
+  return { background: cs.getPropertyValue("--code-bg").trim() || "#1b1b19",
+           foreground: cs.getPropertyValue("--text").trim() || "#e8e6e1",
+           cursor: cs.getPropertyValue("--accent").trim() || "#c96442" };
+}
+function fitTerm() {
+  if (!termFit) return;
+  try { termFit.fit(); } catch {}
+  if (termWs && termWs.readyState === 1)
+    termWs.send(JSON.stringify({ resize: { cols: term.cols, rows: term.rows } }));
+}
+function connectTerminal() {
+  termSid = currentId;
+  try { termWs && termWs.close(); } catch {}
+  term.reset();
+  const proto = location.protocol === "https:" ? "wss" : "ws";
+  termWs = new WebSocket(`${proto}://${location.host}/api/terminal`
+    + (currentId ? "?sid=" + currentId : ""));
+  termWs.onmessage = e => term.write(e.data);
+  termWs.onopen = () => fitTerm();
+  termWs.onclose = () => term && term.write(
+    "\r\n\x1b[90m[disconnected — restart to reopen]\x1b[0m\r\n");
+}
+function ensureTerminal() {
+  if (typeof Terminal === "undefined") {
+    $("termpane").textContent = "Terminal assets failed to load.";
+    return;
+  }
+  if (!term) {
+    const pane = $("termpane");
+    pane.innerHTML = "";
+    const bar = el("div", "dr-toolbar");
+    const ws = el("span", "ws-path", activeWs());
+    ws.title = "The shell starts in this chat's workspace";
+    const restart = iconBtn("", "refresh", "", "Restart the shell");
+    restart.onclick = connectTerminal;
+    bar.append(ws, restart);
+    const host = el("div", "term-host");
+    pane.append(bar, host);
+    term = new Terminal({ fontSize: 12.5, cursorBlink: true, convertEol: false,
+      fontFamily: "Cascadia Mono, Consolas, monospace", theme: termTheme() });
+    termFit = new FitAddon.FitAddon();
+    term.loadAddon(termFit);
+    term.open(host);
+    term.onData(d => termWs && termWs.readyState === 1
+      && termWs.send(JSON.stringify({ input: d })));
+    new ResizeObserver(() => fitTerm()).observe(host);
+  } else {
+    term.options.theme = termTheme();
+  }
+  if (!termWs || termWs.readyState > 1 || termSid !== currentId) connectTerminal();
+  setTimeout(fitTerm, 60);
+  term.focus();
+}
+
 function toggleDrawer(tab) {
   const dr = $("drawer");
   if (dr.classList.contains("open") && drawerTab === tab) { dr.classList.remove("open"); return; }
@@ -2603,8 +2689,14 @@ function populateSettings(s) {
   $("clearkeylabel").style.display = s.api_key_set ? "block" : "none";
   $("ctxinput").value = s.context_window;
   $("maxoutinput").value = s.max_output_tokens;
+  $("scaleinput").value = String(s.ui_scale || 100);
+  $("rulesinput").value = s.global_rules || "";
   $("mcpinput").value = JSON.stringify(s.mcp_servers || {}, null, 2);
   renderSettingsInfo(s);
+}
+function applyUiScale(scale) {
+  const factor = Math.max(80, Math.min(150, Number(scale) || 100)) / 100;
+  document.body.style.zoom = factor === 1 ? "" : String(factor);
 }
 function renderSettingsInfo(s) {
   const mcpReady = (s.mcp_status || []).filter(x => x.state === "ready");
@@ -2705,14 +2797,13 @@ $("savemodal").onclick = async () => {
   if (!$("urlinput").value.trim()) {
     setSettingsStatus("error", "Base URL is required."); $("urlinput").focus(); return;
   }
-  if (!$("modelinput").value.trim()) {
-    setSettingsStatus("error", "Model ID is required."); $("modelinput").focus(); return;
-  }
   const body = { temperature: +$("tslider").value,
     base_url: $("urlinput").value.trim(),
-    model: $("modelinput").value.trim(),
+    model: $("modelinput").value.trim(),   // blank = auto from /v1/models
     context_window: +$("ctxinput").value || undefined,
     max_output_tokens: +$("maxoutinput").value || undefined,
+    global_rules: $("rulesinput").value,
+    ui_scale: +$("scaleinput").value || 100,
     mcp_servers: mcpServers };
   if ($("clearkey").checked) body.api_key = "";
   else if ($("keyinput").value.trim()) body.api_key = $("keyinput").value.trim();
@@ -2725,6 +2816,7 @@ $("savemodal").onclick = async () => {
     status.workspace = s.workspace;
     status.model = s.model; status.base_url = s.base_url;
     status.window = s.effective_context_window || s.context_window;
+    applyUiScale(s.ui_scale);
     updateWsChip();
     populateSettings(s);
     settingsDirty = false;
@@ -3175,6 +3267,7 @@ setInterval(async () => {
 (async function boot() {
   try {
     status = await api("/status");
+    applyUiScale(status.ui_scale);
     await loadModels();
     updateWsChip();
   } catch {

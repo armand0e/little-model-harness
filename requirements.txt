@@ -13,3 +13,5 @@ pygetwindow>=0.0.9
 pillow>=10.0
 pywebview>=5.0
 mcp[cli]>=1.27,<2
+websockets>=12
+pywinpty>=2.0; sys_platform == "win32"

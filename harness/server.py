@@ -24,7 +24,8 @@ import sys
 
 import httpx
 import uvicorn
-from fastapi import FastAPI, HTTPException, Request, UploadFile
+from fastapi import (FastAPI, HTTPException, Request, UploadFile, WebSocket,
+                     WebSocketDisconnect)
 from fastapi.responses import (FileResponse, HTMLResponse, JSONResponse,
                                StreamingResponse)
 from pydantic import BaseModel, Field
@@ -32,7 +33,8 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from .agent import Agent
 from .config import (DATA_DIR, ROOT, SESSIONS_DIR, get_default_workspace,
-                     load_config, save_user_settings, set_default_workspace)
+                     load_config, load_user_settings, save_user_settings,
+                     set_default_workspace)
 from .preview import OFFICE_EXTS, PREVIEWABLE, build_preview, validate_office_archive
 from .mcp_client import (BUILTIN_COMPUTER_SERVER, MCP_HUB,
                          computer_backend_info, load_mcp_servers,
@@ -390,6 +392,102 @@ def index():
     return FileResponse(ROOT / "web" / "index.html")
 
 
+VENDOR_FILES = {"xterm.js": "text/javascript",
+                "xterm.css": "text/css",
+                "addon-fit.js": "text/javascript"}
+
+
+@app.get("/vendor/{name}")
+def vendor_asset(name: str):
+    if name not in VENDOR_FILES:
+        raise HTTPException(404, "unknown asset")
+    path = ROOT / "web" / "vendor" / name
+    if not path.is_file():
+        raise HTTPException(404, "asset missing")
+    return FileResponse(path, media_type=VENDOR_FILES[name])
+
+
+# ---------- interactive terminal (xterm.js over a websocket PTY) ----------
+@app.websocket("/api/terminal")
+async def terminal_socket(websocket: WebSocket, sid: str | None = None):
+    import asyncio
+
+    # HTTP middleware does not cover websocket handshakes: enforce the same
+    # local-only host/origin boundary here.
+    host = (websocket.headers.get("host") or "").split(":")[0].lower()
+    origin = websocket.headers.get("origin")
+    try:
+        origin_host = urlsplit(origin).hostname if origin else None
+    except ValueError:
+        origin_host = "invalid"
+    if host not in {"127.0.0.1", "localhost", "[::1]", "::1"} or (
+            origin and origin_host not in {"127.0.0.1", "localhost", "::1"}):
+        await websocket.close(code=4403)
+        return
+
+    workspace = get_default_workspace()
+    if sid:
+        with SESSIONS_LOCK:
+            session = SESSIONS.get(sid)
+        if session is not None:
+            workspace = Path(session.workspace)
+
+    await websocket.accept()
+    from .pty_shell import spawn_shell
+    try:
+        shell = spawn_shell(workspace)
+    except Exception as exc:
+        await websocket.send_text(
+            f"\r\n[terminal unavailable: {type(exc).__name__}: {exc}]\r\n")
+        await websocket.close()
+        return
+
+    loop = asyncio.get_running_loop()
+
+    async def pump_output() -> None:
+        try:
+            while True:
+                chunk = await loop.run_in_executor(None, shell.read)
+                await websocket.send_text(chunk)
+        except (EOFError, OSError, RuntimeError):
+            try:
+                await websocket.send_text("\r\n[shell exited]\r\n")
+                await websocket.close()
+            except Exception:
+                pass
+
+    reader = asyncio.ensure_future(pump_output())
+    try:
+        while True:
+            message = await websocket.receive_text()
+            if len(message) > 65536:
+                continue
+            try:
+                payload = json.loads(message)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(payload, dict):
+                continue
+            data = payload.get("input")
+            if isinstance(data, str) and data:
+                try:
+                    shell.write(data)
+                except OSError:
+                    break
+            resize = payload.get("resize")
+            if isinstance(resize, dict):
+                try:
+                    shell.resize(int(resize.get("cols", 100)),
+                                 int(resize.get("rows", 30)))
+                except (OSError, TypeError, ValueError):
+                    pass
+    except WebSocketDisconnect:
+        pass
+    finally:
+        reader.cancel()
+        shell.close()
+
+
 # ---------- meta ----------
 SKILL_CATALOG = SkillsManager()
 
@@ -420,6 +518,7 @@ def status():
             "data_dir": str(DATA_DIR), "window": CFG.context_window,
             "skills": skills, "busy": _jobs_active(),
             "mcp": MCP_HUB.status(),
+            "ui_scale": int(load_user_settings().get("ui_scale", 100) or 100),
             "computer_control": _computer_control_status()}
 
 
@@ -432,6 +531,8 @@ class SettingsBody(BaseModel):
     model: str | None = None
     context_window: int | None = None
     mcp_servers: dict[str, dict] | None = None
+    global_rules: str | None = None
+    ui_scale: int | None = None
 
 
 @app.get("/api/settings")
@@ -454,6 +555,8 @@ def get_settings():
             "mcp_servers": load_user_mcp_servers(),
             "mcp_status": MCP_HUB.status(),
             "computer_control": _computer_control_status(),
+            "global_rules": str(load_user_settings().get("global_rules", "")),
+            "ui_scale": int(load_user_settings().get("ui_scale", 100) or 100),
             "background": refresh}
 
 
@@ -647,8 +750,26 @@ def set_settings(body: SettingsBody):
                 or parsed.password is not None):
             raise HTTPException(400, "model endpoint must be an http(s) URL without credentials")
     model = CFG.model
-    if body.model is not None and body.model.strip():
-        model = body.model.strip()
+    if body.model is not None:
+        if body.model.strip():
+            model = body.model.strip()
+        else:
+            # Blank means "auto": use whatever the endpoint reports first.
+            try:
+                candidates = _fetch_models(base_url, CFG.api_key
+                                           if body.api_key is None
+                                           else (body.api_key.strip()
+                                                 or "not-needed"))
+                if candidates:
+                    model = candidates[0]["id"]
+            except Exception:
+                pass  # endpoint offline: keep the current model id
+    global_rules = None
+    if body.global_rules is not None:
+        global_rules = body.global_rules.strip()[:4000]
+    ui_scale = None
+    if body.ui_scale is not None:
+        ui_scale = max(80, min(150, int(body.ui_scale)))
     api_key = CFG.api_key
     if body.api_key is not None:  # empty string clears the key
         api_key = body.api_key.strip() or "not-needed"
@@ -684,7 +805,11 @@ def set_settings(body: SettingsBody):
                             "api_key": api_key,
                             "context_window": context_window,
                             "mcp_servers": user_mcp_servers,
-                            **({"workspace": str(workspace)} if workspace else {})})
+                            **({"workspace": str(workspace)} if workspace else {}),
+                            **({"global_rules": global_rules}
+                               if global_rules is not None else {}),
+                            **({"ui_scale": ui_scale}
+                               if ui_scale is not None else {})})
     except OSError as exc:
         raise HTTPException(500, f"could not save settings: {exc}")
 
