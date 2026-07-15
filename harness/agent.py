@@ -49,6 +49,8 @@ per turn. If the \
 task changes domain midway (e.g. you switch tools/frameworks), load the new \
 domain's skill before continuing.
 - The run tool executes {shell} commands.
+- For multi-step work, keep the todo checklist current: call todo with the \
+FULL list, mark the current step active and finished steps done.
 - For any visual UI you create or change, visual verification is mandatory: \
 use visual_check, inspect every attached screenshot at desktop and mobile \
 sizes, exercise important interactive states (menus/modals/empty/error states) \

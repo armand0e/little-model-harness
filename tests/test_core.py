@@ -1527,3 +1527,52 @@ def test_session_undo_and_targeted_revert_routes(isolated_server: Path):
         assert targeted.status_code == 200
         assert targeted.json()["text"] == "first"
         assert session.display == []
+
+
+def test_todo_tool_formats_and_validates_checklists(tmp_path):
+    agent = Agent(Config(), workspace=tmp_path)
+    try:
+        result = agent.tools.execute("todo", json.dumps({"items": [
+            {"text": "Find sources", "status": "done"},
+            {"text": "Draft the report", "status": "active"},
+            {"text": "Review numbers", "status": "pending"},
+        ]}), agent=agent)
+        assert "2 remaining" in result
+        assert "[x] Find sources" in result
+        assert "[>] Draft the report" in result
+        assert agent.tools.execute("todo", '{"items": []}',
+                                   agent=agent).startswith("Error")
+        assert agent.tools.execute(
+            "todo", '{"items": [{"text": "x", "status": "someday"}]}',
+            agent=agent).startswith("Error")
+    finally:
+        agent.llm.close()
+
+
+def test_revert_also_undoes_saved_skills_and_memories(tmp_path, monkeypatch):
+    import harness.config as config_module
+    import harness.memory as memory_module
+    import harness.skills as skills_module
+    monkeypatch.setattr(config_module, "MEMORY_FILE", tmp_path / "memory.md")
+    monkeypatch.setattr(memory_module, "MEMORY_FILE", tmp_path / "memory.md")
+    monkeypatch.setattr(skills_module, "USER_SKILLS_DIR", tmp_path / "skills")
+    agent = Agent(Config(), workspace=tmp_path)
+    try:
+        agent.turn_no = 1
+        agent.turn_marks.append({"turn": 1, "msg_index": 0})
+        result = agent.tools.execute(
+            "save_skill", json.dumps({
+                "name": "junk-loop", "hint": "junk",
+                "content": "not actually useful"}), agent=agent)
+        assert not result.startswith("Error"), result
+        skill_file = tmp_path / "skills" / "junk-loop" / "SKILL.md"
+        assert skill_file.is_file()
+        result = agent.tools.execute(
+            "remember", '{"fact": "the user hates junk skills"}', agent=agent)
+        assert not result.startswith("Error"), result
+        assert (tmp_path / "memory.md").is_file()
+        agent.revert_to_turn(1)
+        assert not skill_file.exists()
+        assert not (tmp_path / "memory.md").exists()
+    finally:
+        agent.llm.close()

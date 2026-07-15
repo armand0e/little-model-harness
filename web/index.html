@@ -473,6 +473,15 @@
   .diff pre.add { background: color-mix(in srgb, var(--ok) 10%, transparent);
     color: color-mix(in srgb, var(--ok) 70%, var(--text)); }
 
+  .todo-list { border-top: 1px solid var(--border-soft); padding: 8px 14px 10px; }
+  .todo-row { display: flex; align-items: flex-start; gap: 9px; padding: 3px 0;
+    font-size: 13px; color: var(--muted); }
+  .todo-row .todo-mark { flex-shrink: 0; margin-top: 2px; color: var(--faint); }
+  .todo-row.done .todo-text { text-decoration: line-through; color: var(--faint); }
+  .todo-row.done .todo-mark { color: var(--ok); }
+  .todo-row.active { color: var(--text); font-weight: 600; }
+  .todo-row.active .todo-mark { color: var(--accent); }
+
   #memview { font: 12.5px/1.7 Consolas, monospace; white-space: pre-wrap;
     color: var(--muted); padding: 4px 6px; }
 
@@ -987,6 +996,9 @@ const ICONS = {
   external: '<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3"/>',
   menu: '<path d="M3 12h18M3 6h18M3 18h18"/>',
   chevL: '<path d="M15 18l-6-6 6-6"/>',
+  check: '<path d="M5 13l4 4L19 7"/>',
+  circle: '<circle cx="12" cy="12" r="8"/>',
+  arrowR: '<path d="M5 12h14M13 6l6 6-6 6"/>',
   clock: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
   branch: '<path d="M6 3v12"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/>',
   book: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>',
@@ -1366,7 +1378,7 @@ const TOOL_ICONS = { read_file: "file", write_file: "filePlus", edit_file: "penc
   list_dir: "folder", search: "search", run: "terminal", fetch: "globe",
   web_search: "search", skill: "spark", save_skill: "book", remember: "pin",
   history_search: "clock", subtask: "branch", visual_check: "columns",
-  mcp: "globe" };
+  mcp: "globe", todo: "check" };
 function shortArgs(argstr) {
   try {
     const a = JSON.parse(argstr);
@@ -1527,6 +1539,29 @@ function addTool(name, args) {
       }
     } catch {}
   }
+  // todo renders as a live checklist, open by default
+  if (name === "todo") {
+    d.dataset.tool = "todo";
+    try {
+      const a = JSON.parse(args);
+      if (Array.isArray(a.items) && a.items.length) {
+        const list = el("div", "todo-list");
+        for (const item of a.items.slice(0, 12)) {
+          const status = ["done", "active"].includes(item.status) ? item.status : "pending";
+          const row = el("div", "todo-row " + status);
+          const mark = el("span", "todo-mark");
+          mark.innerHTML = svgIcon(
+            status === "done" ? "check" : status === "active" ? "arrowR" : "circle", 12);
+          row.append(mark, el("span", "todo-text", String(item.text || "")));
+          list.append(row);
+        }
+        d.append(list);
+        d.open = true;
+        s.querySelector(".t-args").textContent =
+          `${a.items.filter(x => x.status === "done").length}/${a.items.length} done`;
+      }
+    } catch {}
+  }
   thread.append(d);
   return d;
 }
@@ -1536,6 +1571,7 @@ function finishTool(card, result) {
   const isErr = (result || "").trimStart().startsWith("Error");
   state.textContent = isErr ? "error" : "done";
   state.className = "t-state " + (isErr ? "err" : "ok");
+  if (card.dataset.tool === "todo" && !isErr) return;  // checklist says it all
   const pre = el("pre", "", result || "(no output)");
   card.append(pre);
   card.open = isErr;
@@ -2924,6 +2960,21 @@ $("collapse").onclick = () => document.body.classList.add("sb-hidden");
 $("expand").onclick = () => document.body.classList.remove("sb-hidden");
 $("sbback").onclick = () => document.body.classList.add("sb-hidden");
 if (window.innerWidth <= 900) document.body.classList.add("sb-hidden");
+// Keep layout classes in sync when the window is RESIZED across the
+// breakpoints, not just at load — otherwise shrinking the window leaves
+// the sidebar overlaying the content with no way to dismiss it.
+let _wasNarrow = window.innerWidth <= 900;
+window.addEventListener("resize", () => {
+  const narrow = window.innerWidth <= 900;
+  if (narrow !== _wasNarrow) {
+    _wasNarrow = narrow;
+    document.body.classList.toggle("sb-hidden", narrow);
+  }
+  if (window.innerWidth < 1150 && document.body.classList.contains("art-open")
+      && window.innerWidth < 900) {
+    document.body.classList.remove("art-open");
+  }
+});
 document.querySelectorAll(".dr-tabs button").forEach(b => b.onclick = () => toggleDrawer(b.dataset.tab));
 
 /* ---- export chat as markdown ---- */

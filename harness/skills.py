@@ -190,6 +190,12 @@ class SkillsManager:
         self.loaded.clear()
 
 
+def user_skill_file(name: str) -> Path:
+    """Where save_skill would write this skill (for revert checkpointing)."""
+    slug = re.sub(r"[^a-z0-9-]", "-", name.strip().lower()).strip("-")
+    return USER_SKILLS_DIR / slug / "SKILL.md"
+
+
 def save_skill(name: str, hint: str, content: str,
                category: str | None = None, append: bool = False) -> str:
     """The learning loop: the agent persists what it learned as a skill."""
