@@ -444,58 +444,65 @@ class _WindowsPty:
 
 
 class _UnixPty:
+    """openpty + posix_spawn, never fork(): forking the multithreaded Qt
+    process wedges the child on macOS and a wedged child holds pipes (and CI
+    steps) open forever."""
+
     def __init__(self, cwd: Path, cols: int, rows: int) -> None:
         import pty
+        import subprocess
         shell = os.environ.get("SHELL", "/bin/bash")
-        pid, fd = pty.fork()  # type: ignore[attr-defined]  # unix-only
-        if pid == 0:  # child
-            # The child must never return into the Qt process on failure —
-            # that would leave a forked duplicate of the app running.
-            try:
-                try:
-                    os.chdir(str(cwd))
-                except OSError:
-                    pass
-                os.environ["TERM"] = "xterm-256color"
-                os.execvp(shell, [shell])
-            except BaseException:
-                os._exit(127)
-        self._pid, self._fd = pid, fd
+        self._master, slave = pty.openpty()  # type: ignore[attr-defined]
+        try:
+            self._proc = subprocess.Popen(
+                [shell], cwd=str(cwd),
+                env={**os.environ, "TERM": "xterm-256color"},
+                stdin=slave, stdout=slave, stderr=slave,
+                start_new_session=True, close_fds=True)
+        except BaseException:
+            os.close(self._master)
+            raise
+        finally:
+            os.close(slave)
         self.resize(cols, rows)
 
     def read(self) -> str:
-        data = os.read(self._fd, 4096)
+        data = os.read(self._master, 4096)
         if not data:
             raise EOFError
         return data.decode("utf-8", errors="replace")
 
     def write(self, data: str) -> None:
-        os.write(self._fd, data.encode("utf-8"))
+        os.write(self._master, data.encode("utf-8"))
 
     def resize(self, cols: int, rows: int) -> None:
         import fcntl
         import struct
         import termios
         fcntl.ioctl(  # type: ignore[attr-defined]  # unix-only
-            self._fd, termios.TIOCSWINSZ,  # type: ignore[attr-defined]
+            self._master, termios.TIOCSWINSZ,  # type: ignore[attr-defined]
             struct.pack("HHHH", rows, cols, 0, 0))
 
     def alive(self) -> bool:
-        try:
-            finished, _status = os.waitpid(
-                self._pid, os.WNOHANG)  # type: ignore[attr-defined]
-            return finished == 0
-        except ChildProcessError:
-            return False
+        return self._proc.poll() is None
 
     def close(self) -> None:
         import signal
         try:
-            os.kill(self._pid, signal.SIGTERM)
+            os.killpg(self._proc.pid,  # type: ignore[attr-defined]
+                      signal.SIGTERM)
         except (OSError, ProcessLookupError):
             pass
         try:
-            os.close(self._fd)
+            self._proc.wait(timeout=1.5)
+        except Exception:
+            try:
+                os.killpg(self._proc.pid,  # type: ignore[attr-defined]
+                          signal.SIGKILL)  # type: ignore[attr-defined]
+            except (OSError, ProcessLookupError):
+                pass
+        try:
+            os.close(self._master)
         except OSError:
             pass
 
@@ -712,7 +719,13 @@ class PtyTerminalWidget(QWidget):
 
 def create_terminal(
         workspace: Path | None = None) -> "PtyTerminalWidget | TerminalWidget":
-    """A real PTY terminal when the runtime supports it, else the pipe UI."""
+    """A real PTY terminal when the runtime supports it, else the pipe UI.
+
+    LMH_PIPE_TERMINAL forces the pipe fallback — packaged smoke tests use it
+    so release verification never depends on spawning an interactive shell.
+    """
+    if os.environ.get("LMH_PIPE_TERMINAL"):
+        return TerminalWidget(workspace)
     try:
         return PtyTerminalWidget(workspace)
     except Exception:

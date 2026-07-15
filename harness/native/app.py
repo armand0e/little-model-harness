@@ -45,6 +45,9 @@ def run_native() -> int:
 def smoke_native() -> int:
     """Construct and exercise the packaged native shell without interaction."""
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    # Deterministic teardown on CI runners: the pipe terminal's child is
+    # fully owned by QProcess, so the smoke process tree always exits.
+    os.environ.setdefault("LMH_PIPE_TERMINAL", "1")
     QCoreApplication.setOrganizationName("LittleHarness")
     QCoreApplication.setApplicationName("LittleHarness")
     app = QApplication.instance() or QApplication(sys.argv)
