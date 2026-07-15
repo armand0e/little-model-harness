@@ -95,12 +95,14 @@ def _cap_persisted_tool_text(value: object) -> object:
 class Session:
     def __init__(self, sid: str, title: str = "New chat",
                  created: float | None = None,
-                 workspace: str | None = None, mode: str = "agent") -> None:
+                 workspace: str | None = None, mode: str = "agent",
+                 project_id: str | None = None) -> None:
         self.id = sid
         self.title = title
         self.created = created if created is not None else time.time()
         self.updated = self.created
         self.pinned = False
+        self.project_id = project_id
         self.display: list[dict] = []   # UI-facing event log
         # each chat works in its own folder; new chats inherit the default
         self.workspace = workspace or str(get_default_workspace())
@@ -151,7 +153,7 @@ class Session:
                 "updated": self.updated, "messages": len(self.display),
                 "pinned": self.pinned, "workspace": self.workspace,
                 "running": self.running, "queued": self.queued,
-                "mode": self.mode,
+                "mode": self.mode, "project_id": self.project_id,
                 "pending_count": len(self.pending_messages),
                 "job_id": job.id if job is not None else None,
                 "queue_position": _queue_position(job) if self.queued else None}
@@ -184,6 +186,7 @@ class Session:
                 "updated": self.updated, "pinned": self.pinned,
                 "workspace": self.workspace,
                 "mode": self.mode,
+                "project_id": self.project_id,
                 "pending_messages": self.pending_messages,
                 "display": self.display,
                 "messages": state["messages"],
@@ -313,6 +316,8 @@ class Session:
         if mode not in {"agent", "chat", "research"}:
             return None
         s = cls(sid, str(data.get("title", "Chat"))[:80], created, workspace, mode)
+        project_id = data.get("project_id")
+        s.project_id = project_id if isinstance(project_id, str) else None
         s.updated = updated if updated is not None else s.created
         s.pinned = bool(data.get("pinned", False))
         s.display = display
@@ -877,8 +882,128 @@ def search_chats(q: str):
     return out[:20]
 
 
+# ---------------- projects ----------------
+# A project is a named shared workspace plus instructions. Instructions live
+# as HARNESS.md inside the project workspace — the exact file the agent
+# already injects as "Project notes", so no new context machinery exists.
+
+PROJECTS_FILE = DATA_DIR / "projects.json"
+PROJECTS_LOCK = threading.Lock()
+
+
+def _load_projects() -> list[dict]:
+    try:
+        data = json.loads(PROJECTS_FILE.read_text(encoding="utf-8"))
+        return data if isinstance(data, list) else []
+    except (OSError, json.JSONDecodeError):
+        return []
+
+
+def _save_projects(projects: list[dict]) -> None:
+    PROJECTS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    atomic_write_text(PROJECTS_FILE,
+                      json.dumps(projects, ensure_ascii=False, indent=1))
+
+
+def _find_project(pid: str) -> dict | None:
+    return next((p for p in _load_projects() if p.get("id") == pid), None)
+
+
+def _project_meta(project: dict) -> dict:
+    instructions = ""
+    try:
+        instructions = (Path(project["workspace"])
+                        / "HARNESS.md").read_text(encoding="utf-8")
+    except OSError:
+        pass
+    with SESSIONS_LOCK:
+        chats = sum(1 for s in SESSIONS.values()
+                    if s.project_id == project.get("id"))
+    return {**project, "instructions": instructions, "chats": chats}
+
+
+class ProjectBody(BaseModel):
+    name: str | None = None
+    instructions: str | None = None
+
+
+@app.get("/api/projects")
+def list_projects():
+    with PROJECTS_LOCK:
+        projects = _load_projects()
+    return [_project_meta(p) for p in projects]
+
+
+@app.post("/api/projects")
+def create_project(body: ProjectBody):
+    name = (body.name or "").strip()[:60]
+    if not name:
+        raise HTTPException(400, "project name is required")
+    pid = uuid.uuid4().hex[:12]
+    slug = re.sub(r"[^\w\- ]", "", name).strip().replace(" ", "-").lower()
+    workspace = get_default_workspace() / "projects" / (
+        f"{slug}-{pid[:4]}" if slug else pid)
+    try:
+        workspace.mkdir(parents=True, exist_ok=True)
+        if body.instructions and body.instructions.strip():
+            (workspace / "HARNESS.md").write_text(
+                body.instructions.strip(), encoding="utf-8")
+    except OSError as exc:
+        raise HTTPException(500, f"could not create project folder: {exc}")
+    project = {"id": pid, "name": name, "workspace": str(workspace),
+               "created": time.time()}
+    with PROJECTS_LOCK:
+        projects = _load_projects()
+        projects.append(project)
+        _save_projects(projects)
+    return _project_meta(project)
+
+
+@app.patch("/api/projects/{pid}")
+def update_project(pid: str, body: ProjectBody):
+    with PROJECTS_LOCK:
+        projects = _load_projects()
+        project = next((p for p in projects if p.get("id") == pid), None)
+        if project is None:
+            raise HTTPException(404, "no such project")
+        if body.name is not None and body.name.strip():
+            project["name"] = body.name.strip()[:60]
+        _save_projects(projects)
+    if body.instructions is not None:
+        target = Path(project["workspace"]) / "HARNESS.md"
+        try:
+            if body.instructions.strip():
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(body.instructions.strip(),
+                                  encoding="utf-8")
+            elif target.is_file():
+                target.unlink()
+        except OSError as exc:
+            raise HTTPException(500, f"could not save instructions: {exc}")
+    return _project_meta(project)
+
+
+@app.delete("/api/projects/{pid}")
+def delete_project(pid: str):
+    with PROJECTS_LOCK:
+        projects = _load_projects()
+        keep = [p for p in projects if p.get("id") != pid]
+        if len(keep) == len(projects):
+            raise HTTPException(404, "no such project")
+        _save_projects(keep)
+    # Chats survive their project: they just lose the grouping. The project
+    # folder stays on disk — it may hold the user's files.
+    with SESSIONS_LOCK:
+        affected = [s for s in SESSIONS.values() if s.project_id == pid]
+    for s in affected:
+        s.project_id = None
+        s.save()
+    return {"ok": True}
+
+
 class CreateSessionBody(BaseModel):
     mode: str = "agent"
+    project_id: str | None = None
 
 
 @app.post("/api/sessions")
@@ -886,7 +1011,15 @@ def create_session(body: CreateSessionBody | None = None):
     mode = body.mode if body else "agent"
     if mode not in {"agent", "chat", "research"}:
         raise HTTPException(400, "mode must be 'agent', 'chat', or 'research'")
-    s = Session(uuid.uuid4().hex[:12], mode=mode)
+    project = None
+    if body and body.project_id:
+        with PROJECTS_LOCK:
+            project = _find_project(body.project_id)
+        if project is None:
+            raise HTTPException(404, "no such project")
+    s = Session(uuid.uuid4().hex[:12], mode=mode,
+                workspace=project["workspace"] if project else None,
+                project_id=project["id"] if project else None)
     with SESSIONS_LOCK:
         SESSIONS[s.id] = s
     return s.meta()

@@ -396,6 +396,16 @@ class Agent:
             memory_block += ("\nUser rules (the user set these; follow them "
                              f"in every chat):\n{rules[:1500]}\n")
         if not self.tool_mode:
+            # Chats that belong to a project still get its instructions
+            # (the same files the agent mode injects as project notes).
+            for fname in ("AGENTS.md", "CLAUDE.md", "HARNESS.md"):
+                p = self.workspace / fname
+                if p.is_file():
+                    txt = p.read_text(encoding="utf-8",
+                                      errors="replace")[:2500]
+                    memory_block += ("\nProject notes (kept with this "
+                                     f"chat's project; follow them):\n{txt}\n")
+                    break
             return CHAT_SYSTEM_PROMPT.format(
                 os_name=platform.system() + " " + platform.release(),
                 today=datetime.date.today().isoformat(),

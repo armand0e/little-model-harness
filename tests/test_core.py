@@ -1288,6 +1288,51 @@ def test_crash_recovery_does_not_replay_a_possibly_destructive_running_job(
     assert json.loads(server.JOBS_FILE.read_text(encoding="utf-8")) == []
 
 
+def test_projects_lifecycle_and_session_assignment(
+        isolated_server: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(server, "PROJECTS_FILE",
+                        isolated_server / "projects.json")
+    monkeypatch.setenv("LMH_WORKSPACE", str(isolated_server / "ws"))
+    with local_client() as client:
+        created = client.post("/api/projects", json={
+            "name": "Taxes 2026", "instructions": "Always use CSV outputs."})
+        assert created.status_code == 200, created.text
+        project = created.json()
+        assert project["name"] == "Taxes 2026"
+        assert project["instructions"] == "Always use CSV outputs."
+        ws = Path(project["workspace"])
+        assert ws.is_dir()
+        assert (ws / "HARNESS.md").read_text(encoding="utf-8") \
+            == "Always use CSV outputs."
+
+        # nameless projects are rejected; unknown project ids 404
+        assert client.post("/api/projects", json={}).status_code == 400
+        assert client.post("/api/sessions", json={
+            "mode": "chat", "project_id": "nope"}).status_code == 404
+
+        # sessions created in the project inherit its workspace
+        session = client.post("/api/sessions", json={
+            "mode": "agent", "project_id": project["id"]}).json()
+        assert session["project_id"] == project["id"]
+        assert Path(session["workspace"]) == ws
+        assert client.get("/api/projects").json()[0]["chats"] == 1
+
+        # instructions and name update in place; blank instructions remove
+        patched = client.patch(f"/api/projects/{project['id']}", json={
+            "name": "Taxes", "instructions": "Prefer XLSX."}).json()
+        assert patched["name"] == "Taxes"
+        assert (ws / "HARNESS.md").read_text(encoding="utf-8") \
+            == "Prefer XLSX."
+
+        # deleting a project keeps its chats (unassigned) and its folder
+        assert client.delete(
+            f"/api/projects/{project['id']}").status_code == 200
+        assert client.get("/api/projects").json() == []
+        remaining = client.get(f"/api/sessions/{session['id']}").json()
+        assert remaining["project_id"] is None
+        assert ws.is_dir()
+
+
 def test_session_settings_memory_and_workspace_api_lifecycle(
         isolated_server: Path, monkeypatch: pytest.MonkeyPatch):
     default_workspace = isolated_server / "default-workspace"

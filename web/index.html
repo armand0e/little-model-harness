@@ -92,6 +92,34 @@
   .sb-nav .nav-count { margin-left: auto; color: var(--faint); font-size: 10.5px; }
   #historyscope { margin: 2px 18px 6px; color: var(--faint); font-size: 10.5px;
     font-weight: 700; letter-spacing: .65px; text-transform: uppercase; }
+  #projecthead { display: flex; align-items: center; justify-content:
+    space-between; margin: 4px 18px 4px; color: var(--faint);
+    font-size: 10.5px; font-weight: 700; letter-spacing: .65px;
+    text-transform: uppercase; }
+  #projecthead button { width: 20px; height: 20px; border-radius: 6px;
+    display: grid; place-items: center; color: var(--faint); }
+  #projecthead button:hover { color: var(--text);
+    background: var(--border-soft); }
+  #projectlist { flex-shrink: 0; max-height: 160px; overflow-y: auto;
+    padding: 0 8px; margin-bottom: 6px; }
+  #projectlist .empty-note { padding: 2px 10px 4px; color: var(--faint);
+    font-size: 11.5px; }
+  .proj-row { display: flex; align-items: center; gap: 8px;
+    padding: 6px 10px; border-radius: 8px; cursor: pointer;
+    font-size: 13px; color: var(--muted); }
+  .proj-row:hover { background: var(--border-soft); color: var(--text); }
+  .proj-row.active { background: var(--accent-soft); color: var(--text); }
+  .proj-row .p-ico { display: inline-flex; flex-shrink: 0; }
+  .proj-row .p-name { flex: 1; min-width: 0; white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis; }
+  .proj-row .p-count { color: var(--faint); font-size: 11px; }
+  .proj-row .p-acts { display: none; gap: 2px; flex-shrink: 0; }
+  .proj-row:hover .p-acts { display: flex; }
+  .proj-row:hover .p-count { display: none; }
+  .proj-row .p-acts button { width: 22px; height: 22px; border-radius: 6px;
+    display: grid; place-items: center; color: var(--faint); }
+  .proj-row .p-acts button:hover { color: var(--text);
+    background: var(--border); }
   #search {
     margin: 0 12px 8px; padding: 7px 12px; border-radius: 8px;
     border: 1px solid var(--border); background: var(--bg); color: var(--text);
@@ -574,10 +602,16 @@
   #appdialogfield.show { display: block; }
   #appdialogfield label { display: block; margin-bottom: 6px; color: var(--muted);
     font-size: 12px; }
-  #appdialoginput { width: 100%; padding: 9px 11px; border-radius: 9px;
+  #appdialoginput, #appdialogtextarea { width: 100%; padding: 9px 11px;
+    border-radius: 9px;
     border: 1px solid var(--border); background: var(--bg); color: var(--text);
     font: 13px Consolas, monospace; outline: none; }
-  #appdialoginput:focus { border-color: var(--accent); }
+  #appdialoginput:focus, #appdialogtextarea:focus {
+    border-color: var(--accent); }
+  #appdialogtextarea { display: none; min-height: 150px; resize: vertical;
+    line-height: 1.5; }
+  #appdialogfield.multiline #appdialoginput { display: none; }
+  #appdialogfield.multiline #appdialogtextarea { display: block; }
   .appdialog-acts { display: flex; justify-content: flex-end; gap: 8px;
     margin-top: 20px; }
   .appdialog-acts button { padding: 8px 16px; border-radius: 9px;
@@ -787,6 +821,10 @@
     <button type="button" data-sidebar-mode="research"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.4-4.4M8 11h6M11 8v6"/></svg><span>Deep research</span><span class="nav-count" id="researchcount">0</span></button>
   </div>
   <button class="newchat" id="newchat" disabled><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> <span id="newchatlabel">New code task</span></button>
+  <div id="projecthead">Projects
+    <button id="newproject" title="New project"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
+  </div>
+  <div id="projectlist"></div>
   <div id="historyscope">Code history</div>
   <input id="search" placeholder="Search chats…">
   <div id="convos"></div>
@@ -965,6 +1003,7 @@
     <div id="appdialogfield">
       <label for="appdialoginput" id="appdialoglabel"></label>
       <input id="appdialoginput" autocomplete="off" spellcheck="false">
+      <textarea id="appdialogtextarea" spellcheck="false"></textarea>
     </div>
     <div class="appdialog-acts">
       <button type="button" id="appdialogcancel">Cancel</button>
@@ -1125,7 +1164,8 @@ function fmtSize(n) {
 function closeAppDialog(confirmed) {
   if (!dialogResolve) return;
   const resolve = dialogResolve;
-  const value = $("appdialoginput").value;
+  const value = $("appdialogfield").classList.contains("multiline")
+    ? $("appdialogtextarea").value : $("appdialoginput").value;
   dialogResolve = null;
   $("appdialogoverlay").classList.remove("open");
   document.body.classList.remove("dialog-open");
@@ -1134,7 +1174,8 @@ function closeAppDialog(confirmed) {
   dialogLastFocus = null;
 }
 function appDialog({ title, message, confirmLabel = "OK", cancelLabel = null,
-                     inputValue = null, inputLabel = "", danger = false }) {
+                     inputValue = null, inputLabel = "", danger = false,
+                     multiline = false }) {
   // Resolve an older dialog defensively instead of leaving its caller hung.
   if (dialogResolve) closeAppDialog(false);
   dialogLastFocus = document.activeElement;
@@ -1146,12 +1187,14 @@ function appDialog({ title, message, confirmLabel = "OK", cancelLabel = null,
   $("appdialogcancel").style.display = cancelLabel ? "inline-block" : "none";
   const hasInput = inputValue !== null;
   $("appdialogfield").classList.toggle("show", hasInput);
+  $("appdialogfield").classList.toggle("multiline", hasInput && multiline);
   $("appdialoglabel").textContent = inputLabel;
-  $("appdialoginput").value = hasInput ? inputValue : "";
+  $("appdialoginput").value = hasInput && !multiline ? inputValue : "";
+  $("appdialogtextarea").value = hasInput && multiline ? inputValue : "";
   $("appdialogoverlay").classList.add("open");
   document.body.classList.add("dialog-open");
-  requestAnimationFrame(() => (hasInput ? $("appdialoginput")
-    : $("appdialogconfirm")).focus());
+  requestAnimationFrame(() => (!hasInput ? $("appdialogconfirm")
+    : multiline ? $("appdialogtextarea") : $("appdialoginput")).focus());
   return new Promise(resolve => { dialogResolve = resolve; });
 }
 async function appAlert(title, message) {
@@ -1922,22 +1965,116 @@ function convoRow(s, snippet) {
   return c;
 }
 
+/* ---------------- projects ---------------- */
+let projects = [];
+let activeProjectId = localStorage.lmhProject || "";
+async function loadProjects() {
+  try { projects = await api("/projects"); } catch { projects = []; }
+  if (activeProjectId && !projects.some(p => p.id === activeProjectId)) {
+    activeProjectId = ""; localStorage.lmhProject = "";
+  }
+  renderProjects();
+}
+function setActiveProject(pid) {
+  activeProjectId = activeProjectId === pid ? "" : pid;
+  localStorage.lmhProject = activeProjectId;
+  renderProjects(); renderSidebar();
+}
+async function editProjectInstructions(p) {
+  const result = await appDialog({
+    title: p.name,
+    message: "Instructions the assistant follows in every chat of this "
+      + "project. Files in the project folder are shared across its chats.",
+    confirmLabel: "Save", cancelLabel: "Cancel",
+    inputValue: p.instructions || "", inputLabel: "Project instructions",
+    multiline: true });
+  if (!result.confirmed) return;
+  try {
+    await api(`/projects/${p.id}`, { method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ instructions: result.value }) });
+    await loadProjects();
+  } catch (err) { await appAlert("Could not save instructions", err.message); }
+}
+function projectRow(p) {
+  const row = el("div", "proj-row" + (p.id === activeProjectId ? " active" : ""));
+  const ico = el("span", "p-ico"); ico.innerHTML = svgIcon("folder", 13);
+  const name = el("span", "p-name", p.name);
+  name.title = `${p.name} — ${p.workspace}`;
+  const count = el("span", "p-count",
+    String(sessions.filter(s => s.project_id === p.id).length));
+  const acts = el("span", "p-acts");
+  const mk = (icon, title, fn) => {
+    const b = document.createElement("button");
+    b.innerHTML = svgIcon(icon, 11); b.title = title;
+    b.onclick = e => { e.stopPropagation(); fn(); };
+    return b;
+  };
+  acts.append(
+    mk("file", "Project instructions", () => editProjectInstructions(p)),
+    mk("pencil", "Rename project", async () => {
+      const name2 = await appPrompt("Rename project", "", p.name, "Name");
+      if (!name2 || name2 === p.name) return;
+      try {
+        await api(`/projects/${p.id}`, { method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: name2 }) });
+        await loadProjects();
+      } catch (err) { await appAlert("Could not rename project", err.message); }
+    }),
+    mk("trash", "Delete project", async () => {
+      if (!await appConfirm("Delete project?",
+        `Chats in “${p.name}” are kept (ungrouped) and the project folder `
+        + "stays on disk.", "Delete", true)) return;
+      try {
+        await api(`/projects/${p.id}`, { method: "DELETE" });
+        if (activeProjectId === p.id) setActiveProject(p.id);
+        await loadProjects(); await refreshSessions();
+      } catch (err) { await appAlert("Could not delete project", err.message); }
+    }));
+  row.append(ico, name, count, acts);
+  row.onclick = () => setActiveProject(p.id);
+  return row;
+}
+function renderProjects() {
+  const box = $("projectlist"); box.innerHTML = "";
+  for (const p of projects) box.append(projectRow(p));
+  if (!projects.length)
+    box.append(el("div", "empty-note", "Group chats around shared files + instructions"));
+}
+$("newproject").onclick = async () => {
+  const name = await appPrompt("New project",
+    "A project groups chats around a shared folder and instructions.",
+    "", "Project name");
+  if (!name) return;
+  try {
+    const p = await post("/projects", { name });
+    activeProjectId = p.id; localStorage.lmhProject = p.id;
+    await loadProjects(); renderSidebar();
+    await editProjectInstructions(p);
+  } catch (err) { await appAlert("Could not create project", err.message); }
+};
+
 let _searchTimer = null;
 const sessionMode = session => ["chat", "research"].includes(session?.mode)
   ? session.mode : "agent";
 const modeSessions = mode => sessions.filter(session => sessionMode(session) === mode);
+const projectScoped = list => activeProjectId
+  ? list.filter(s => s.project_id === activeProjectId) : list;
 function renderSidebar() {
+  renderProjects();                    // keeps per-project chat counts live
   const box = $("convos");
   const q = $("search").value.trim();
   const renderedMode = draftMode;
-  const scopedSessions = modeSessions(renderedMode);
+  const scopedSessions = projectScoped(modeSessions(renderedMode));
   if (q.length >= 2) {           // full-content search, debounced
     clearTimeout(_searchTimer);
     _searchTimer = setTimeout(async () => {
       let results = [];
       try { results = await api("/search?q=" + encodeURIComponent(q)); } catch {}
       if ($("search").value.trim() !== q || draftMode !== renderedMode) return;
-      results = results.filter(session => sessionMode(session) === renderedMode);
+      results = projectScoped(
+        results.filter(session => sessionMode(session) === renderedMode));
       box.innerHTML = "";
       const scopeName = { chat: "Chat", research: "Research" }[renderedMode] || "Code";
       box.append(el("div", "group-label",
@@ -2300,7 +2437,8 @@ async function sendMessage(textOverride) {
   }
   if (currentId && pendingSends.has(currentId)) return;
   if (!currentId) {
-    const m = await post("/sessions", { mode: currentMode() });
+    const m = await post("/sessions", { mode: currentMode(),
+      project_id: activeProjectId || null });
     currentId = m.id;
     sessionWs = m.workspace || null;
     updateWsChip();
@@ -3457,6 +3595,7 @@ setInterval(async () => {
 }, 1500);
 
 (async function boot() {
+  loadProjects().catch(() => {});   // parallel: model probing can be slow
   try {
     status = await api("/status");
     applyUiScale(status.ui_scale);

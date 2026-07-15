@@ -25,8 +25,11 @@ def test_frontend_uses_only_app_native_dialogs() -> None:
 def test_chat_and_code_histories_are_scoped_independently() -> None:
     assert 'id="historyscope">Code history' in UI
     assert 'const modeSessions = mode => sessions.filter' in UI
-    assert "const scopedSessions = modeSessions(renderedMode)" in UI
-    assert "results = results.filter(session => sessionMode(session) === renderedMode)" in UI
+    assert ("const scopedSessions = "
+            "projectScoped(modeSessions(renderedMode))") in UI
+    assert ("results = projectScoped(\n"
+            "        results.filter(session => sessionMode(session)"
+            " === renderedMode))") in UI
     assert "lmh-last-session:${mode}" in UI
     assert "new:${draftMode}" in UI
     switch = UI.split("async function setConversationMode(mode)", 1)[1].split(
