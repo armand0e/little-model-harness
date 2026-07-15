@@ -18,6 +18,7 @@ concurrency:
 jobs:
   test:
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
@@ -43,6 +44,7 @@ jobs:
     name: Windows x64 installer
     needs: test
     runs-on: windows-2025
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
@@ -108,6 +110,7 @@ jobs:
     needs: test
     # The explicit image fixes the oldest glibc the AppImage requires.
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
@@ -179,6 +182,7 @@ jobs:
             python_arch: x64
             arch: x86_64
     runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
@@ -216,6 +220,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [windows, linux, macos]
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     permissions:
       contents: write
     steps:
