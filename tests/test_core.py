@@ -1298,7 +1298,9 @@ def test_openai_facade_proxies_models_and_streams_completions(
             pass
 
         def do_GET(self):
-            body = json.dumps({"data": [{"id": "m1"}]}).encode()
+            # Ollama-shaped listing: the facade must normalize this to
+            # OpenAI {"data": [{"id": ...}]} for the desktop shell.
+            body = json.dumps({"models": [{"name": "m1"}]}).encode()
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(body)))

@@ -530,10 +530,30 @@ async def v1_models():
         async with httpx.AsyncClient(timeout=20) as client:
             r = await client.get(f"{CFG.base_url}/models",
                                  headers=_upstream_headers())
-        return JSONResponse(r.json(), status_code=r.status_code)
+        raw = r.json()
     except Exception as exc:
         return JSONResponse({"error": {"message": f"upstream: {exc}"}},
                             status_code=502)
+    # Normalize to OpenAI shape: some local servers answer /v1/models in
+    # Ollama's {"models": [{"name"/"model": ...}]} form, which breaks
+    # clients that expect {"data": [{"id": ...}]}.
+    items = None
+    if isinstance(raw, dict):
+        if isinstance(raw.get("data"), list):
+            items = raw["data"]
+        elif isinstance(raw.get("models"), list):
+            items = raw["models"]
+    if items is None:
+        return JSONResponse(raw, status_code=r.status_code)
+    data = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        model_id = item.get("id") or item.get("model") or item.get("name")
+        if model_id:
+            data.append({"id": str(model_id), "object": "model",
+                         "owned_by": "local"})
+    return {"object": "list", "data": data}
 
 
 @app.post("/v1/chat/completions")
