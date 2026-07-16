@@ -512,6 +512,71 @@ def _computer_control_status() -> dict[str, object]:
     return info
 
 
+# ---------------- OpenAI-compatible provider facade (/v1) ----------------
+# The claude-desktop-open-source shell talks OpenAI /v1 to its provider.
+# Serving that surface here gives it one local endpoint that follows the
+# harness settings (base_url / model / api key) instead of its own config.
+
+def _upstream_headers() -> dict[str, str]:
+    headers = {"Content-Type": "application/json"}
+    if CFG.api_key and CFG.api_key != "not-needed":
+        headers["Authorization"] = f"Bearer {CFG.api_key}"
+    return headers
+
+
+@app.get("/v1/models")
+async def v1_models():
+    try:
+        async with httpx.AsyncClient(timeout=20) as client:
+            r = await client.get(f"{CFG.base_url}/models",
+                                 headers=_upstream_headers())
+        return JSONResponse(r.json(), status_code=r.status_code)
+    except Exception as exc:
+        return JSONResponse({"error": {"message": f"upstream: {exc}"}},
+                            status_code=502)
+
+
+@app.post("/v1/chat/completions")
+async def v1_chat_completions(request: Request):
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(400, "invalid JSON body")
+    if not isinstance(body, dict):
+        raise HTTPException(400, "body must be a JSON object")
+    if not body.get("model"):
+        body["model"] = CFG.model
+    url = f"{CFG.base_url}/chat/completions"
+    client = httpx.AsyncClient(timeout=httpx.Timeout(None, connect=20))
+    try:
+        upstream = await client.send(
+            client.build_request("POST", url, json=body,
+                                 headers=_upstream_headers()),
+            stream=True)
+    except Exception as exc:
+        await client.aclose()
+        return JSONResponse({"error": {"message": f"upstream: {exc}"}},
+                            status_code=502)
+    if upstream.status_code >= 400:
+        detail = (await upstream.aread()).decode("utf-8", "replace")[:1000]
+        await upstream.aclose()
+        await client.aclose()
+        return JSONResponse({"error": {"message": detail or "upstream error"}},
+                            status_code=upstream.status_code)
+
+    async def relay():
+        try:
+            async for chunk in upstream.aiter_raw():
+                yield chunk
+        finally:
+            await upstream.aclose()
+            await client.aclose()
+
+    return StreamingResponse(
+        relay(),
+        media_type=upstream.headers.get("content-type", "application/json"))
+
+
 @app.get("/api/status")
 def status():
     SKILL_CATALOG.refresh()

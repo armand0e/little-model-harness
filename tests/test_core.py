@@ -1288,6 +1288,63 @@ def test_crash_recovery_does_not_replay_a_possibly_destructive_running_job(
     assert json.loads(server.JOBS_FILE.read_text(encoding="utf-8")) == []
 
 
+def test_openai_facade_proxies_models_and_streams_completions(
+        isolated_server: Path, monkeypatch: pytest.MonkeyPatch):
+    import http.server
+    import threading
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def log_message(self, *args) -> None:
+            pass
+
+        def do_GET(self):
+            body = json.dumps({"data": [{"id": "m1"}]}).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def do_POST(self):
+            size = int(self.headers.get("Content-Length", "0"))
+            req = json.loads(self.rfile.read(size))
+            assert req["model"]          # facade fills in the default model
+            chunks = (b'data: {"choices":[{"delta":{"content":"hi"}}]}\n\n'
+                      b"data: [DONE]\n\n")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream")
+            self.send_header("Content-Length", str(len(chunks)))
+            self.end_headers()
+            self.wfile.write(chunks)
+
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        monkeypatch.setattr(
+            server.CFG, "base_url", f"http://127.0.0.1:{srv.server_port}/v1")
+        with local_client() as client:
+            models = client.get("/v1/models")
+            assert models.status_code == 200
+            assert models.json()["data"][0]["id"] == "m1"
+            done = client.post("/v1/chat/completions", json={
+                "messages": [{"role": "user", "content": "hey"}],
+                "stream": True})
+            assert done.status_code == 200
+            assert '"content":"hi"' in done.text
+            assert "data: [DONE]" in done.text
+            assert client.post(
+                "/v1/chat/completions", json="nope").status_code == 400
+        # a dead upstream surfaces as 502, not a hang or a 500 traceback
+        monkeypatch.setattr(server.CFG, "base_url",
+                            "http://127.0.0.1:9/v1")
+        with local_client() as client:
+            assert client.post("/v1/chat/completions", json={
+                "messages": []}).status_code == 502
+            assert client.get("/v1/models").status_code == 502
+    finally:
+        srv.shutdown()
+
+
 def test_projects_lifecycle_and_session_assignment(
         isolated_server: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(server, "PROJECTS_FILE",
